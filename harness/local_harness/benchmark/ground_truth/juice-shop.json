@@ -1,0 +1,44 @@
+[
+    {
+        "finding_id": "JS-001",
+        "type": "SQLInjection",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "Authentication bypass via SQL injection in the login handler. In routes/login.ts the exported login() middleware builds a raw query by string-interpolating the user-controlled req.body.email directly into a SQL statement: models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`). An attacker POSTing to /rest/user/login with email `' OR 1=1--` (or `admin@juice-sh.op'--`) comments out the password check and authenticates as the first/admin user, returning a valid JWT. No parameterization or escaping is applied to the email field. Corresponds to the Juice Shop loginAdminChallenge / loginBenderChallenge / loginJimChallenge."
+    },
+    {
+        "finding_id": "JS-002",
+        "type": "SQLInjection",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "UNION-based SQL injection in product search. In routes/search.ts the searchProducts() middleware interpolates the user-controlled req.query.q ('criteria') straight into a raw SQL query: models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`). The only guard is truncation to 200 characters; there is no escaping or parameterization. An attacker hitting GET /rest/products/search?q= with a `')) UNION SELECT ... FROM Users--` payload can exfiltrate arbitrary tables (e.g. user emails and password hashes) and read the SQLite schema. Corresponds to the unionSqlInjectionChallenge / dbSchemaChallenge."
+    },
+    {
+        "finding_id": "JS-003",
+        "type": "NoSQLInjection",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "Server-side JavaScript / NoSQL injection in order tracking. In routes/trackOrder.ts the trackOrder() middleware interpolates the user-controlled req.params.id into a MongoDB $where clause: db.orders.find({ $where: `this.orderId === '${id}'` }). The $where operator executes the string as JavaScript in the database engine, so a crafted id such as `'||true||'` returns all orders (data exposure) and payloads using `sleep()`/loops enable blind extraction or DoS. Input is only stripped of non-word characters when running inside a container (disableOnContainerEnv), leaving it exploitable in normal deployments. Corresponds to the noSqlOrdersChallenge."
+    },
+    {
+        "finding_id": "JS-004",
+        "type": "PathTraversal",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "Path traversal / local file disclosure via poison null byte in the public file server. In routes/fileServer.ts the servePublicFiles() handler takes the user-controlled params.file and, after a weak allowlist check (endsWithAllowlistedFileType or the fixed name 'incident-support.kdbx'), calls security.cutOffPoisonNullByte(file) and then res.sendFile(path.resolve('ftp/', file)). Because the extension allowlist is evaluated before the null byte is cut off, an attacker can request a path like `/ftp/package.json.bak%2500.md` so the name passes the .md/.pdf check but resolves to a different file on disk, reading files that are not intended to be served. Corresponds to the nullByteChallenge / forgottenDevBackupChallenge / forgottenBackupChallenge."
+    },
+    {
+        "finding_id": "JS-005",
+        "type": "XXE",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "XML External Entity (XXE) injection in the B2B complaint file upload. In routes/fileUpload.ts the handleXmlUpload() middleware parses the uploaded XML buffer with external-entity resolution explicitly enabled: libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true }) (run inside vm.runInContext). The noent: true flag expands external entities, so an uploaded .xml containing a DOCTYPE with a SYSTEM entity (e.g. <!ENTITY xxe SYSTEM 'file:///etc/passwd'>) discloses local file contents back in the error/response, and recursive/large entities cause a denial of service. Reachable via the file upload endpoint. Corresponds to the xxeFileDisclosureChallenge / xxeDosChallenge."
+    },
+    {
+        "finding_id": "JS-006",
+        "type": "RemoteCodeExecution",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "Remote code execution / denial of service via unsafe sandboxed evaluation of B2B order data. In routes/b2bOrder.ts the b2bOrder() middleware passes the user-controlled body.orderLinesData into a vm context and evaluates it with the 'notevil' safeEval: vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 }). The notevil sandbox is bypassable and the vm-based isolation is insufficient, so crafted orderLinesData can escape the sandbox to execute attacker code, and an infinite loop payload exhausts the 2s timeout to cause resource-exhaustion DoS. Corresponds to the rceChallenge / rceOccupyChallenge."
+    },
+    {
+        "finding_id": "JS-007",
+        "type": "ServerSideTemplateInjection",
+        "source_code": "https://github.com/juice-shop/juice-shop/tree/8e019194ee3b5334e0417cba9bc94928ffaa9e7e",
+        "description": "Server-side code injection via the username field rendered into the user profile page. In routes/userProfile.ts getUserProfile() reads the stored user.username and, when it matches the pattern /#{(.*)}/, extracts the inner expression and executes it with eval(code) before substituting it into the Pug template that is compiled and served. Because username is attacker-controlled (set via profile update), a value like `#{global.process.mainModule.require('child_process').execSync('id')}` results in server-side code/expression execution (SSTI leading toward RCE). The template is also compiled with pug.compile on the interpolated string, compounding the template-injection surface. Corresponds to the usernameXssChallenge / SSTI behaviour (abused_ssti_bug)."
+    }
+]
