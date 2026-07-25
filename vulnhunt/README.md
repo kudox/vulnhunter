@@ -44,6 +44,47 @@ For unattended or batch operation, the [`vulnhunter-agent/`](../vulnhunter-agent
 runtime wraps this skill headlessly and the [`harness/`](../harness/README.md)
 drives it across many repositories.
 
+## Optional: seed the sink inventory with Semgrep (Bash)
+
+Phase 1 builds a **sink inventory** by grepping for dangerous patterns
+(`phases/phase1_recon.md`, Step 1a). You can optionally seed that inventory with a
+Semgrep pass first. Semgrep is a fast pattern matcher — high recall, lots of noise —
+so its hits enter the pipeline as **candidate sinks (leads), never as findings**. The
+forward trace (Phase 2) and the adversarial verify (Phase 2b) still have to confirm or
+discard each one. This is the division of labour that keeps the false-positive rate low:
+**Semgrep for recall, VulnHunter for precision.** Do not treat a Semgrep hit as a
+vulnerability.
+
+This is an **operator pre-scan step**, run before `/vulnhunt`. It requires Bash and a
+local Semgrep install, so it is *not* part of the default read-only skill — it fits the
+`vulnhunter-agent/` runtime, or any interactive run where you have Semgrep available.
+
+```bash
+# Run from the target repo root, BEFORE starting the scan.
+# Install once, e.g.:  pipx install semgrep
+mkdir -p .vulnhunt-seed
+
+# `--config auto` fetches community rules from the Semgrep registry (network +
+# third-party rules — pin curated packs like `p/security-audit` `p/owasp-top-ten`
+# instead if you want an offline, reviewed ruleset).
+semgrep scan --config auto \
+  --severity ERROR --severity WARNING \
+  --json --quiet \
+  -o .vulnhunt-seed/semgrep.json .
+
+# Slim it to just the fields the scan needs (keeps agent context small):
+jq '[.results[] | {check_id, path, line: .start.line,
+     severity: .extra.severity, message: .extra.message}]' \
+  .vulnhunt-seed/semgrep.json > .vulnhunt-seed/sinks.json
+```
+
+Leave `.vulnhunt-seed/sinks.json` in the target repo root. Phase 1 Step 1a picks it up
+automatically when present and cross-references each entry against the input inventory;
+when it is absent the scan runs exactly as before. The Semgrep output is your own tool's
+data, but `--config auto` pulls third-party rules — review the ruleset you trust, and
+remember the seed only *adds* candidates: it never suppresses the mandatory grep pass or
+short-circuits verification.
+
 ## Design: dispatcher + phase subagents
 
 `SKILL.md` is an **orchestrator** — it never performs security analysis itself.

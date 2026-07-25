@@ -39,6 +39,14 @@ sink inventory cascades to a missing partition and a total blind spot.
 Include shared libraries that serve a specific app (e.g., `libs/auth/step-up/`
 serves `apps/step-up/`) in the coverage check for that app.
 
+**Optional Semgrep seed**: If a file `.vulnhunt-seed/sinks.json` exists in the
+target repo root (produced by the operator's optional pre-scan — see the skill
+README), read it and fold each entry into the sink inventory as an **additional
+candidate sink**, tagged as Semgrep-sourced. These are unverified leads, not
+findings: they must still be traced forward in Phase 2 and survive Phase 2b like
+any other candidate, and they never replace or short-circuit the mandatory grep
+pass above. If the file is absent, skip this step silently.
+
 **URL-path-concatenation sink sweep (MANDATORY)**: In addition to navigation
 sinks, grep ALL production source files (including shared libraries) for
 string concatenation/interpolation into HTTP client URL arguments — patterns
