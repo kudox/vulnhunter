@@ -60,6 +60,7 @@ Each component is organized into a self-contained subtree:
 | `vulnhunt-fix-verify/` | The `/vulnhunt-fix-verify` standalone verification skill (Prompt-only). See [`vulnhunt-fix-verify/README.md`](vulnhunt-fix-verify/README.md). |
 | `vulnhunter-agent/` | Config-driven headless runtime wrapper that runs scans and files GitHub issues. See [`vulnhunter-agent/README.md`](vulnhunter-agent/README.md). |
 | `harness/` | Developer tooling for running large batch-scans and benchmarking detection accuracy. See [`harness/README.md`](harness/README.md). |
+| `integrations/` | Optional, opt-in add-ons. Includes an [OSV MCP integration](integrations/mcp-osv/README.md) that enriches Hunt-phase findings with open-source vulnerability data. |
 
 ---
 
