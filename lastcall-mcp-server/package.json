@@ -1,0 +1,31 @@
+{
+  "name": "lastcall-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for LastCall — a perishable-inventory promotion marketplace. Merchants post expiring inventory (tonight's empty seats, unsold tickets, open slots) as targeted offers; AI agents search, claim, and redeem them on behalf of users.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "lastcall-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "express": "^4.21.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
