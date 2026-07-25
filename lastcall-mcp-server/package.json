@@ -14,7 +14,8 @@
     "clean": "rm -rf dist",
     "smoke": "tsx scripts/smoke.ts",
     "test:eventbrite": "tsx scripts/eventbrite-test.ts",
-    "test": "npm run smoke && npm run test:eventbrite"
+    "test:listings": "tsx scripts/listings-test.ts",
+    "test": "npm run smoke && npm run test:eventbrite && npm run test:listings"
   },
   "engines": {
     "node": ">=18"

@@ -20,6 +20,12 @@ import {
   buildEventbriteInventory,
   promotionRuleFromEnv,
 } from "./services/eventbriteInventory.js";
+import {
+  TicketmasterAdapter,
+  ticketmasterConfigFromEnv,
+} from "./services/adapters/ticketmaster.js";
+import type { SourceAdapter } from "./services/adapters/types.js";
+import { runListingIngest } from "./services/ingest.js";
 import { InMemoryOfferStore } from "./store/store.js";
 import type { OfferStore } from "./store/store.js";
 
@@ -75,10 +81,49 @@ async function startEventbriteSync(store: OfferStore): Promise<void> {
   }
 }
 
+/**
+ * OSINT listing ingestion: run every configured source adapter now, then
+ * re-sync on an interval (default 60 min, LASTCALL_INGEST_REFRESH_MINUTES;
+ * 0 disables). Currently wired: Ticketmaster (TICKETMASTER_API_KEY).
+ */
+async function startListingIngest(store: OfferStore): Promise<void> {
+  const adapters: SourceAdapter[] = [];
+  const tmConfig = ticketmasterConfigFromEnv();
+  if (tmConfig) adapters.push(new TicketmasterAdapter(tmConfig));
+
+  if (adapters.length === 0) {
+    console.error("Listing ingest disabled (no source keys set, e.g. TICKETMASTER_API_KEY)");
+    return;
+  }
+
+  const sync = async (): Promise<void> => {
+    const summary = await runListingIngest(store, adapters);
+    const perSource = summary.bySource
+      .map((s) => `${s.source}: ${s.error ? `ERROR ${s.error}` : `${s.ingested} in, ${s.skipped} skipped`}`)
+      .join(" | ");
+    console.error(
+      `Listing ingest: ${summary.totalUpserted} upserted, ${summary.merged} merged as duplicates — ${perSource}`,
+    );
+  };
+
+  await sync();
+
+  const refreshMinutes = Number(process.env.LASTCALL_INGEST_REFRESH_MINUTES ?? "60");
+  if (Number.isFinite(refreshMinutes) && refreshMinutes > 0) {
+    const timer = setInterval(() => {
+      sync().catch((error) => {
+        console.error("Listing re-ingest failed (keeping existing listings):", error);
+      });
+    }, refreshMinutes * 60_000);
+    timer.unref();
+  }
+}
+
 async function runStdio(): Promise<void> {
   const store = makeStore();
   const { server } = createServer({ store });
   await startEventbriteSync(store);
+  await startListingIngest(store);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("LastCall MCP server running via stdio");
@@ -93,6 +138,7 @@ async function runHttp(): Promise<void> {
   const store = makeStore();
   const { server } = createServer({ store });
   await startEventbriteSync(store);
+  await startListingIngest(store);
 
   app.post("/mcp", async (req, res) => {
     const transport = new StreamableHTTPServerTransport({

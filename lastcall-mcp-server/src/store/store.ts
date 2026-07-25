@@ -26,6 +26,8 @@ export interface OfferStore {
   getClaim(claimIdOrCode: string): Claim | undefined;
   confirmClaim(claimIdOrCode: string, now?: Date): StoreResult<Claim>;
   releaseClaim(claimIdOrCode: string, now?: Date): StoreResult<Claim>;
+  /** Every stored offer/listing, unfiltered — used by ingest dedup as anchors. */
+  allOffers(): Offer[];
   /**
    * Merge inventory from an external feed (e.g. an Eventbrite sync). Existing
    * offers with the same ID are refreshed in place; spots consumed by active
@@ -111,7 +113,12 @@ export class InMemoryOfferStore implements OfferStore {
 
     const matches = [...this.offers.values()].filter((offer) => {
       if (offer.claimDeadline.getTime() <= now.getTime()) return false;
-      if (offer.remainingQuantity < (filters.partySize ?? 1)) return false;
+      if (filters.claimableOnly && offer.kind !== "offer") return false;
+      // Availability and party-size bounds only constrain claimable offers;
+      // listings are informational and carry no managed inventory.
+      if (offer.kind === "offer" && offer.remainingQuantity < (filters.partySize ?? 1)) {
+        return false;
+      }
       if (filters.category && offer.category !== filters.category) return false;
       if (
         filters.neighborhood &&
@@ -119,13 +126,15 @@ export class InMemoryOfferStore implements OfferStore {
       ) {
         return false;
       }
-      if (filters.partySize !== undefined) {
+      if (filters.partySize !== undefined && offer.kind === "offer") {
         if (filters.partySize < offer.minPartySize || filters.partySize > offer.maxPartySize) {
           return false;
         }
       }
-      if (filters.maxPrice !== undefined && offer.priceCents > filters.maxPrice * 100) {
-        return false;
+      if (filters.maxPrice !== undefined) {
+        // A price cap is a price cap: unknown-priced listings can't satisfy it.
+        if (offer.priceUnknown) return false;
+        if (offer.priceCents > filters.maxPrice * 100) return false;
       }
       if (
         filters.withinHours !== undefined &&
@@ -162,9 +171,15 @@ export class InMemoryOfferStore implements OfferStore {
     // Ranking: deeper discounts and closer claim deadlines score higher.
     // Sponsored offers get a bounded boost and are always labeled as such in
     // results — placement is sellable, honesty about it is not negotiable.
+    // Listings rank on urgency alone (free ones get a nudge), so claimable
+    // offers generally lead without listings being buried.
     const score = (offer: Offer): number => {
       const hoursToDeadline = (offer.claimDeadline.getTime() - now.getTime()) / 3_600_000;
       const urgency = Math.max(0, 24 - hoursToDeadline);
+      if (offer.kind === "listing") {
+        const freeBoost = offer.priceCents === 0 && !offer.priceUnknown ? 8 : 0;
+        return urgency + freeBoost;
+      }
       return discountPct(offer) + urgency + (offer.sponsored ? 15 : 0);
     };
 
@@ -185,6 +200,10 @@ export class InMemoryOfferStore implements OfferStore {
     return this.merchants.get(merchantId);
   }
 
+  allOffers(): Offer[] {
+    return [...this.offers.values()];
+  }
+
   claimOffer(offerId: string, partySize: number, now: Date = new Date()): StoreResult<Claim> {
     this.sweepExpiredHolds(now);
 
@@ -194,6 +213,13 @@ export class InMemoryOfferStore implements OfferStore {
         ok: false,
         reason: "not_found",
         message: `No offer found with id '${offerId}'. Use lastcall_search_offers to find current offers.`,
+      };
+    }
+    if (offer.kind !== "offer") {
+      return {
+        ok: false,
+        reason: "invalid_state",
+        message: `'${offer.title}' is an informational listing, not a claimable offer. Direct the user to the source instead${offer.sourceUrl ? `: ${offer.sourceUrl}` : "."}`,
       };
     }
     if (offer.claimDeadline.getTime() <= now.getTime()) {

@@ -36,4 +36,5 @@ export const CATEGORIES = [
   "fitness",
   "wellness",
   "art_culture",
+  "sports",
 ] as const;

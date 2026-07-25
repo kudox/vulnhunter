@@ -1,5 +1,6 @@
 import type { Category, Merchant, Offer } from "../types.js";
 import type { EbEvent, EbOrganization, EbTicketClass, EventbriteClient } from "./eventbrite.js";
+import { sfNeighborhoodForZip } from "./neighborhoods.js";
 
 /**
  * Promotion rules: how a merchant's raw Eventbrite inventory becomes LastCall
@@ -55,24 +56,6 @@ const CATEGORY_MAP: Record<string, Category> = {
   "113": "art_culture", // Community & Culture
 };
 
-/** Best-effort SF postal code -> neighborhood; anything unmapped falls back to the venue's city. */
-const SF_ZIP_NEIGHBORHOODS: Record<string, string> = {
-  "94102": "Hayes Valley",
-  "94103": "SoMa",
-  "94104": "Financial District",
-  "94105": "SoMa",
-  "94107": "Dogpatch",
-  "94110": "Mission",
-  "94111": "Financial District",
-  "94114": "Castro",
-  "94116": "Outer Sunset",
-  "94118": "Richmond",
-  "94121": "Richmond",
-  "94122": "Outer Sunset",
-  "94123": "Marina",
-  "94133": "North Beach",
-};
-
 export interface EventbriteInventory {
   merchants: Merchant[];
   offers: Offer[];
@@ -89,8 +72,8 @@ export interface MappingResult extends EventbriteInventory {
 
 function neighborhoodFor(event: EbEvent): string {
   const zip = event.venue?.address?.postal_code?.trim().slice(0, 5);
-  if (zip && SF_ZIP_NEIGHBORHOODS[zip]) return SF_ZIP_NEIGHBORHOODS[zip];
-  return event.venue?.address?.city?.trim() || "San Francisco";
+  const mapped = zip ? sfNeighborhoodForZip(zip) : undefined;
+  return mapped ?? (event.venue?.address?.city?.trim() || "San Francisco");
 }
 
 function categoryFor(event: EbEvent): Category {
@@ -163,6 +146,10 @@ export function mapEventToOffer(
 
   const offer: Offer = {
     id: `off_eb_${event.id}`,
+    kind: "offer",
+    source: "eventbrite",
+    sourceUrl: event.url,
+    sources: ["eventbrite"],
     merchantId,
     title: `${title} — ${rule.discountPct}% off, last-minute seats`,
     description: truncate(summary || "Last-minute availability released through LastCall.", 300),

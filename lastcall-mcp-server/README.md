@@ -14,7 +14,7 @@ This is a working scaffold: the full offer lifecycle runs end-to-end against an 
 
 | Tool | What it does |
 |---|---|
-| `lastcall_search_offers` | Search live offers with filters (category, neighborhood, party size, price, time window, min discount). Ranked by discount depth + urgency; sponsored results labeled. |
+| `lastcall_search_offers` | Search live events with filters (category, neighborhood, party size, price, time window, min discount, `claimable_only`). Returns claimable **offers** and informational **listings** (see below); ranked by discount depth + urgency; sponsored results labeled. `max_price=0` = free events only. |
 | `lastcall_get_offer` | Full details for one offer: description, venue, terms, live availability. |
 | `lastcall_claim_offer` | Place a 10-minute hold; spots come off the market immediately and auto-return if not confirmed. |
 | `lastcall_confirm_redemption` | Convert a hold into a confirmed booking; returns the door code and the fee-split receipt. Idempotent. |
@@ -63,6 +63,25 @@ TRANSPORT=http PORT=3000 npm start   # serves streamable HTTP on /mcp
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
+## Two-tier inventory: offers vs listings
+
+Search results carry a `kind`:
+
+- **`offer`** — claimable through LastCall (hold → confirm → door code), from connected merchants. The monetized tier.
+- **`listing`** — informational events synced from OSINT sources (free events and non-merchant events included), always attributed with a `source_url` link-out. Not claimable — `lastcall_claim_offer` rejects listings and points the agent at the source. The completeness tier that makes the tool the default answer to "what's happening tonight?" (strategy: [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md)).
+
+Cross-source duplicates are merged by the dedup engine (`src/services/dedup.ts`): fuzzy match on title + venue + start-time ±45min, winner picked by source precedence (ticketing APIs > venue sites > aggregators > LLM-extracted), all corroborating sources kept in `corroborated_by`. A listing never displaces an existing claimable offer for the same event.
+
+## Ticketmaster listings (OSINT source #1)
+
+```bash
+TICKETMASTER_API_KEY=your_key npm start   # free key at developer.ticketmaster.com
+```
+
+The Discovery API has genuinely public search (free tier: 5,000 calls/day). The adapter pulls upcoming events for `TICKETMASTER_CITY`/`TICKETMASTER_STATE_CODE` (default San Francisco/CA) within `LASTCALL_LISTING_MAX_DAYS_OUT` (14 days), maps segments to categories (Music → live_music, Comedy genre → comedy, Sports → sports, …), and ingests them as listings. Events with no concrete start time or a non-onsale status are skipped with logged reasons; missing price ranges become `priceUnknown` (excluded from any `max_price` search). Re-ingest runs every 60 min (`LASTCALL_INGEST_REFRESH_MINUTES`, `0` to disable). Verify without a key: `npm run test:listings`.
+
+New adapters implement `SourceAdapter` (`src/services/adapters/types.ts`) and get dedup, provenance, and refresh for free via the shared ingest pipeline (`src/services/ingest.ts`).
+
 ## Eventbrite integration
 
 With a token, the server ingests live events from your Eventbrite organization(s) and turns the under-sold ones into LastCall offers alongside (or instead of) the seed data:
@@ -102,7 +121,13 @@ src/
 │   └── seed.ts         # demo SF merchants/offers, times relative to now
 ├── services/
 │   ├── eventbrite.ts            # Eventbrite v3 API client (injectable fetch)
-│   └── eventbriteInventory.ts   # promotion rules + event -> offer mapping (pure)
+│   ├── eventbriteInventory.ts   # promotion rules + event -> offer mapping (pure)
+│   ├── dedup.ts                 # cross-source dedup/merge (precedence + provenance)
+│   ├── ingest.ts                # shared listing-ingest pipeline
+│   ├── neighborhoods.ts         # SF zip -> neighborhood mapping
+│   └── adapters/
+│       ├── types.ts             # SourceAdapter contract
+│       └── ticketmaster.ts      # Discovery API adapter (listings)
 └── tools/              # one file per tool
 ```
 

@@ -62,7 +62,11 @@ const inputShape = {
     .min(0)
     .max(100)
     .optional()
-    .describe("Only offers discounted at least this many percent off face value"),
+    .describe("Only offers discounted at least this many percent off face value (excludes listings)"),
+  claimable_only: z
+    .boolean()
+    .default(false)
+    .describe("Only claimable offers; excludes informational listings synced from external sources"),
   limit: z
     .number()
     .int()
@@ -90,21 +94,26 @@ export function registerSearchOffers(server: McpServer, store: OfferStore): void
     "lastcall_search_offers",
     {
       title: "Search LastCall Offers",
-      description: `Search live promotional offers on expiring inventory (tonight's empty seats, unsold tickets, open class slots) from ${CITY} merchants.
+      description: `Search live events in ${CITY}: promotional offers on expiring inventory (tonight's empty seats, unsold tickets, open class slots) from connected merchants, plus informational listings synced from external sources (Ticketmaster, and growing).
 
-Offers are time-limited: each has a claim_deadline after which it disappears, and a remaining_spots count that shrinks as other agents claim. Results are ranked by discount depth and urgency. Some merchants pay for priority placement; those results always carry "sponsored": true (JSON) or a [SPONSORED] label (markdown) — ranking boost is bounded and disclosed, never hidden.
+Two kinds of results, distinguished by "kind"/"claimable":
+  - "offer": claimable through LastCall (hold -> confirm -> door code); has discount, availability, and a claim_deadline after which it disappears.
+  - "listing": informational only — free events and non-merchant events included for completeness; links out to its source for tickets. lastcall_claim_offer rejects listings.
 
-This tool is read-only; claiming happens via lastcall_claim_offer.
+Results are ranked by discount depth and urgency (listings by urgency; free listings get a small boost). Some merchants pay for priority placement; those results always carry "sponsored": true (JSON) or a [SPONSORED] label (markdown) — ranking boost is bounded and disclosed, never hidden.
+
+Tip: max_price=0 returns free events only. This tool is read-only; claiming happens via lastcall_claim_offer.
 
 Args:
   - query (string, optional): Free-text search, e.g. 'jazz', 'oysters', 'comedy tonight'
   - category (enum, optional): One of ${CATEGORIES.join(", ")}
   - neighborhood (string, optional): Case-insensitive; curated set is ${NEIGHBORHOODS.join(", ")}, and offers synced from external feeds (e.g. Eventbrite) may carry other neighborhood/city names
   - party_size (int, optional): Filters to offers that can seat the whole party
-  - max_price (number, optional): Max promotional price per person, in dollars
+  - max_price (number, optional): Max price per person, in dollars; 0 = free events only (excludes unknown-priced listings)
   - within_hours (number, optional): Only offers starting within N hours (6 ≈ "tonight")
   - starts_after / starts_before (ISO 8601, optional): Explicit time window
-  - min_discount_pct (int, optional): Minimum percent off face value
+  - min_discount_pct (int, optional): Minimum percent off face value (offers only)
+  - claimable_only (boolean, default false): Exclude informational listings
   - limit / offset: Pagination (default limit ${DEFAULT_SEARCH_LIMIT}, max ${MAX_SEARCH_LIMIT})
   - response_format: 'markdown' (default) or 'json'
 
@@ -117,6 +126,11 @@ Returns (JSON format):
     "next_offset": number,    // present when has_more is true
     "offers": [{
       "id": string,                   // pass to lastcall_get_offer / lastcall_claim_offer
+      "kind": "offer" | "listing",
+      "claimable": boolean,
+      "source": string,               // "seed", "eventbrite", "ticketmaster", ...
+      "source_url": string,           // present on listings — where tickets are sold
+      "corroborated_by": string[],    // present when multiple sources reported this event
       "title": string,
       "merchant": string,
       "merchant_id": string,
@@ -124,15 +138,16 @@ Returns (JSON format):
       "neighborhood": string,
       "starts_at": string,            // ISO 8601
       "ends_at": string,
+      "price_per_person": string,     // e.g. "$21.00", "Free", or "see source"
+      "sponsored": boolean,
+      // offers only:
       "claim_deadline": string,       // claim before this or it's gone
-      "price_per_person": string,     // e.g. "$21.00"
       "face_value_per_person": string,
       "discount_pct": number,
       "remaining_spots": number,
       "party_size_min": number,
       "party_size_max": number,
-      "new_customers_only": boolean,
-      "sponsored": boolean
+      "new_customers_only": boolean
     }]
   }
 
@@ -159,6 +174,7 @@ Error handling:
             query: params.query,
             category: params.category,
             neighborhood: params.neighborhood,
+            claimableOnly: params.claimable_only,
             partySize: params.party_size,
             maxPrice: params.max_price,
             withinHours: params.within_hours,
@@ -193,7 +209,7 @@ Error handling:
           const lines = [
             `# LastCall offers in ${CITY}`,
             "",
-            `Found ${total} offer(s), showing ${offers.length}. Claim with \`lastcall_claim_offer\` before each offer's claim deadline.`,
+            `Found ${total} result(s), showing ${offers.length}. Offers are claimable with \`lastcall_claim_offer\`; [LISTING] entries link out to their source for tickets.`,
             "",
             ...offers.map((o) => offerToMarkdown(o, store.getMerchant(o.merchantId), now)),
           ];

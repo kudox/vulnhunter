@@ -410,6 +410,8 @@ export function buildSeed(now: Date): SeedData {
     }
     return {
       id: spec.id,
+      kind: "offer" as const,
+      source: "seed",
       merchantId: spec.merchantId,
       title: spec.title,
       description: spec.description,

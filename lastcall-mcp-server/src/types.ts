@@ -19,8 +19,25 @@ export interface Merchant {
   description: string;
 }
 
+/**
+ * Two-tier inventory:
+ * - "offer": claimable, from a connected merchant — the monetized tier.
+ * - "listing": informational, OSINT-sourced — searchable, links out to its
+ *   source, cannot be claimed. The demand-side completeness tier.
+ */
+export type OfferKind = "offer" | "listing";
+
 export interface Offer {
   id: string;
+  kind: OfferKind;
+  /** Where this record came from: "seed", "eventbrite", "ticketmaster", ... */
+  source: string;
+  /** Link to the event page at the source (required in practice for listings). */
+  sourceUrl?: string;
+  /** All sources that corroborated this event, when dedup merged duplicates. */
+  sources?: string[];
+  /** True when the source didn't expose pricing (listings only). */
+  priceUnknown?: boolean;
   merchantId: string;
   title: string;
   description: string;
@@ -69,6 +86,8 @@ export interface OfferSearchFilters {
   category?: Category;
   neighborhood?: Neighborhood;
   query?: string;
+  /** Only claimable offers (exclude informational listings). */
+  claimableOnly?: boolean;
   partySize?: number;
   /** Maximum promotional price per person, in dollars. */
   maxPrice?: number;

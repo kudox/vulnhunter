@@ -13,13 +13,11 @@ the session date that shipped them.
 ## Backlog
 
 ### OSINT event ingestion (see [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md))
-- [ ] Two-tier inventory model: add `kind: "offer" | "listing"` + `source`/`sourceUrl` provenance to the domain model; listings are searchable but not claimable (added: 2026-07-25)
-- [ ] `SourceAdapter` interface + normalizer (category/neighborhood mapping, timezone handling) (added: 2026-07-25)
-- [ ] Dedup/merge engine: fuzzy (title, venue, start-time window) keying with source-precedence rules (added: 2026-07-25)
-- [ ] Phase 1 adapters: Ticketmaster Discovery API, schema.org JSON-LD venue crawler (seed ~30 SF venues), ICS feed set (SFPL, Rec & Parks), Funcheap (added: 2026-07-25)
+- [ ] Remaining Phase 1 adapters: schema.org JSON-LD venue crawler (seed ~30 SF venues), ICS feed set (SFPL, Rec & Parks), Funcheap (added: 2026-07-25)
 - [ ] Phase 2 adapters: Luma calendars, 19hz.info, DoTheBay, newsletter-inbox pipeline (dedicated mailbox + LLM extraction) (added: 2026-07-25)
 - [ ] Phase 3 adapters: Meetup public pages, Resident Advisor, Google Events (SerpApi) as gap-filler, Reddit weekly threads (added: 2026-07-25)
-- [ ] Search tool updates: `claimable_only` filter, listing rendering with link-outs and attribution (added: 2026-07-25)
+- [ ] Anchor enrichment: record corroborating listing sources on existing offers instead of only logging the merge (added: 2026-07-25)
+- [ ] Phase-1 done-bar check: ≥50 deduplicated free+paid events for a given SF evening vs manual Funcheap/Chronicle spot-check (added: 2026-07-25)
 
 ### Platform
 - [ ] Postgres `OfferStore` implementation (row-level locking on claims) (added: 2026-07-25)
@@ -38,6 +36,14 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-25 (OSINT Phase 1 foundation)
+- [x] Two-tier inventory model: `kind: "offer" | "listing"`, `source`/`sourceUrl`/`sources` provenance, `priceUnknown`; listings searchable, not claimable
+- [x] `SourceAdapter` interface + shared ingest pipeline (per-adapter error isolation, ingest summaries)
+- [x] Dedup/merge engine: title/venue token similarity + start ±45min, source precedence, provenance merge, offer-beats-listing anchor rule
+- [x] Ticketmaster Discovery adapter (first OSINT source; SF city query, segment→category mapping, priceUnknown handling)
+- [x] Search updates: `claimable_only`, `max_price=0` = free-only, listing rendering with link-outs; claim guard on listings
+- [x] `npm run test:listings` fixture suite
 
 ### Session 2026-07-25 (tracking + OSINT plan)
 - [x] TASKS.md + WORKLOG.md tracking system

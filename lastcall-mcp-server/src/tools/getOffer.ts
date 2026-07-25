@@ -69,6 +69,10 @@ Error handling:
 
         let text: string;
         if (params.response_format === ResponseFormat.MARKDOWN) {
+          const footer =
+            offer.kind === "offer"
+              ? `Total for a party of N: N × ${dollars(offer.priceCents)}. Claim with \`lastcall_claim_offer\` (holds spots for 10 minutes), then \`lastcall_confirm_redemption\`.`
+              : `Informational listing — not claimable through LastCall. Tickets/details at the source${offer.sourceUrl ? `: ${offer.sourceUrl}` : "."}`;
           text = [
             offerToMarkdown(offer, merchant, now),
             "",
@@ -78,7 +82,7 @@ Error handling:
             `**About the venue**: ${merchant?.description ?? ""}`,
             `**Terms**: ${offer.terms}`,
             "",
-            `Total for a party of N: N × ${dollars(offer.priceCents)}. Claim with \`lastcall_claim_offer\` (holds spots for 10 minutes), then \`lastcall_confirm_redemption\`.`,
+            footer,
           ].join("\n");
         } else {
           text = JSON.stringify(structured, null, 2);

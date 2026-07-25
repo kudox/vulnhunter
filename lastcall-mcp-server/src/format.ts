@@ -26,10 +26,21 @@ export function relativeTime(date: Date, now: Date = new Date()): string {
   return `in ${Math.round(h / 24)} days`;
 }
 
-/** Structured offer summary used in search results and detail views. */
+function priceLabel(offer: Offer): string {
+  if (offer.priceUnknown) return "see source";
+  if (offer.priceCents === 0) return "Free";
+  return dollars(offer.priceCents);
+}
+
+/** Structured offer/listing summary used in search results and detail views. */
 export function offerToJson(offer: Offer, merchant: Merchant | undefined) {
-  return {
+  const base = {
     id: offer.id,
+    kind: offer.kind,
+    claimable: offer.kind === "offer",
+    source: offer.source,
+    ...(offer.sourceUrl ? { source_url: offer.sourceUrl } : {}),
+    ...(offer.sources && offer.sources.length > 1 ? { corroborated_by: offer.sources } : {}),
     title: offer.title,
     merchant: merchant?.name ?? offer.merchantId,
     merchant_id: offer.merchantId,
@@ -37,19 +48,34 @@ export function offerToJson(offer: Offer, merchant: Merchant | undefined) {
     neighborhood: offer.neighborhood,
     starts_at: offer.startsAt.toISOString(),
     ends_at: offer.endsAt.toISOString(),
+    price_per_person: priceLabel(offer),
+    sponsored: offer.sponsored,
+  };
+  if (offer.kind !== "offer") return base;
+  return {
+    ...base,
     claim_deadline: offer.claimDeadline.toISOString(),
-    price_per_person: dollars(offer.priceCents),
     face_value_per_person: dollars(offer.faceValueCents),
     discount_pct: discountPct(offer),
     remaining_spots: offer.remainingQuantity,
     party_size_min: offer.minPartySize,
     party_size_max: offer.maxPartySize,
     new_customers_only: offer.newCustomersOnly,
-    sponsored: offer.sponsored,
   };
 }
 
 export function offerToMarkdown(offer: Offer, merchant: Merchant | undefined, now: Date): string {
+  if (offer.kind === "listing") {
+    const lines = [
+      `## ${offer.title} · [LISTING]`,
+      `- **Where**: ${merchant?.name ?? offer.merchantId} — ${offer.neighborhood}`,
+      `- **When**: starts ${relativeTime(offer.startsAt, now)} (${offer.startsAt.toISOString()})`,
+      `- **Price**: ${priceLabel(offer)}`,
+      `- **Source**: ${offer.source}${offer.sourceUrl ? ` — ${offer.sourceUrl}` : ""} (not claimable; tickets at the source)`,
+      `- **ID**: \`${offer.id}\``,
+    ];
+    return lines.join("\n");
+  }
   const lines = [
     `## ${offer.title}${offer.sponsored ? " · [SPONSORED]" : ""}`,
     `- **Where**: ${merchant?.name ?? offer.merchantId} — ${offer.neighborhood}`,

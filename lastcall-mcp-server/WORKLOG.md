@@ -10,6 +10,30 @@ again if forgotten.
 
 ---
 
+## 2026-07-25 — OSINT Phase 1: listing tier, dedup engine, Ticketmaster adapter
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- Two-tier inventory model: `Offer.kind` ("offer" | "listing") with `source`/`sourceUrl`/`sources` provenance and `priceUnknown`. Listings are searchable but not claimable — the claim guard points agents at the source URL.
+- Dedup/merge engine (`src/services/dedup.ts`), `SourceAdapter` contract + shared ingest pipeline (`src/services/ingest.ts`), Ticketmaster Discovery adapter as the first OSINT source, and `npm run test:listings` covering all of it.
+- Search: `claimable_only` filter; `max_price=0` now means "free events only"; listings render with `[LISTING]` label + link-out.
+
+**Design decisions**
+- **Dedup matching**: token-overlap similarity (over the smaller set, so "X" matches "X — Late Set") on title AND venue, plus start-time ±45min. No fuzzy-match dependency; thresholds at 0.5. Stopword list strips venue-noise words ("presents", "live", "sf"…).
+- **Source precedence**: seed(100) > ticketing APIs (eventbrite/ticketmaster, 90) > venue JSON-LD (70) > ICS (60) > aggregators (50) > newsletter/news LLM-extracted (10). Prefixed sources ("jsonld:sfjazz.org") match on prefix.
+- **Anchor rule**: an incoming listing matching anything already in the store is dropped — a listing must never displace a claimable offer. Losing sources are preserved in `sources` (`corroborated_by` in output) as a future ranking signal; enriching anchors with them is a backlog item.
+- **Unknown price ≠ free**: Ticketmaster often omits `priceRanges`; those listings get `priceUnknown` and are excluded from any `max_price` search rather than masquerading as $0.
+- Ranking: listings score urgency-only (+small free boost) so claimable offers generally lead without burying listings.
+- Ingest isolates adapter failures (one broken source doesn't sink the sync) and re-syncs each 60 min (`LASTCALL_INGEST_REFRESH_MINUTES`).
+
+**Gotchas**
+- Ticketmaster Discovery: date params must be ISO **without milliseconds**; deep paging is rejected past item ~1000 (we cap at 5×100/page); `dates.start` can be date-only (TBA time) — skip those; check `dates.status.code` for cancelled/postponed events.
+- Ingest anchors must exclude the syncing adapter's own prior records, or every re-sync deduplicates itself away.
+- Added "sports" to `CATEGORIES` for TM's Sports segment — category enum is ours to extend, but tool descriptions embed it, so they update automatically via the constant.
+
+---
+
 ## 2026-07-25 — Tracking system + OSINT event-sourcing plan
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g) · branch `claude/mcp-revenue-brainstorm-9ybtd1`
