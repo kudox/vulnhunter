@@ -15,12 +15,72 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import { createServer } from "./server.js";
+import { EventbriteClient } from "./services/eventbrite.js";
+import {
+  buildEventbriteInventory,
+  promotionRuleFromEnv,
+} from "./services/eventbriteInventory.js";
+import { InMemoryOfferStore } from "./store/store.js";
+import type { OfferStore } from "./store/store.js";
+
+// NOTE: all logging goes to stderr — on the stdio transport, stdout is
+// protocol traffic.
+
+function makeStore(): OfferStore {
+  const seed = process.env.LASTCALL_SEED !== "off";
+  return new InMemoryOfferStore(new Date(), { seed });
+}
+
+/**
+ * If EVENTBRITE_API_TOKEN is set, pull the token's organizations' live events
+ * into the store now, and keep re-syncing on an interval (default 30 min,
+ * configurable via EVENTBRITE_REFRESH_MINUTES; 0 disables the interval).
+ */
+async function startEventbriteSync(store: OfferStore): Promise<void> {
+  const token = process.env.EVENTBRITE_API_TOKEN;
+  if (!token) {
+    console.error("Eventbrite sync disabled (EVENTBRITE_API_TOKEN not set) — serving seed inventory only");
+    return;
+  }
+
+  const client = new EventbriteClient(token);
+  const rule = promotionRuleFromEnv();
+  const orgIds = process.env.EVENTBRITE_ORG_IDS?.split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  const sync = async (): Promise<void> => {
+    const result = await buildEventbriteInventory(client, rule, new Date(), orgIds);
+    store.upsertInventory(result.merchants, result.offers);
+    console.error(
+      `Eventbrite sync: ${result.offers.length} offer(s) from ${result.merchants.length} venue(s); skipped ${result.skipped.length} event(s)` +
+        (result.skipped.length > 0
+          ? ` (${result.skipped.map((s) => `${s.eventId}: ${s.reason}`).join("; ")})`
+          : ""),
+    );
+  };
+
+  // First sync is awaited so startup fails loudly on a bad token instead of
+  // silently serving seed data.
+  await sync();
+
+  const refreshMinutes = Number(process.env.EVENTBRITE_REFRESH_MINUTES ?? "30");
+  if (Number.isFinite(refreshMinutes) && refreshMinutes > 0) {
+    const timer = setInterval(() => {
+      sync().catch((error) => {
+        console.error("Eventbrite re-sync failed (keeping existing inventory):", error);
+      });
+    }, refreshMinutes * 60_000);
+    timer.unref(); // don't keep the process alive just to re-sync
+  }
+}
 
 async function runStdio(): Promise<void> {
-  const { server } = createServer();
+  const store = makeStore();
+  const { server } = createServer({ store });
+  await startEventbriteSync(store);
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  // stdio transport: stdout is protocol traffic, so log to stderr only.
   console.error("LastCall MCP server running via stdio");
 }
 
@@ -30,7 +90,9 @@ async function runHttp(): Promise<void> {
 
   // One store shared across requests; a new transport per request keeps the
   // HTTP layer stateless (no sessions), which is the simplest thing to scale.
-  const { server } = createServer();
+  const store = makeStore();
+  const { server } = createServer({ store });
+  await startEventbriteSync(store);
 
   app.post("/mcp", async (req, res) => {
     const transport = new StreamableHTTPServerTransport({

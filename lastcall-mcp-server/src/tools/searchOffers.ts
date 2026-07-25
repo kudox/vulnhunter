@@ -22,9 +22,12 @@ const inputShape = {
     .optional()
     .describe("Filter by offer category"),
   neighborhood: z
-    .enum(NEIGHBORHOODS)
+    .string()
+    .max(60)
     .optional()
-    .describe(`Filter by ${CITY} neighborhood`),
+    .describe(
+      `Filter by neighborhood or city, case-insensitive (e.g. ${NEIGHBORHOODS.slice(0, 4).join(", ")}); external-feed offers may carry other names`,
+    ),
   party_size: z
     .number()
     .int()
@@ -96,7 +99,7 @@ This tool is read-only; claiming happens via lastcall_claim_offer.
 Args:
   - query (string, optional): Free-text search, e.g. 'jazz', 'oysters', 'comedy tonight'
   - category (enum, optional): One of ${CATEGORIES.join(", ")}
-  - neighborhood (enum, optional): One of ${NEIGHBORHOODS.join(", ")}
+  - neighborhood (string, optional): Case-insensitive; curated set is ${NEIGHBORHOODS.join(", ")}, and offers synced from external feeds (e.g. Eventbrite) may carry other neighborhood/city names
   - party_size (int, optional): Filters to offers that can seat the whole party
   - max_price (number, optional): Max promotional price per person, in dollars
   - within_hours (number, optional): Only offers starting within N hours (6 ≈ "tonight")

@@ -1,7 +1,14 @@
 import { CATEGORIES, NEIGHBORHOODS } from "./constants.js";
 
 export type Category = (typeof CATEGORIES)[number];
-export type Neighborhood = (typeof NEIGHBORHOODS)[number];
+
+/**
+ * Free-form so external feeds (Eventbrite venues, etc.) can carry any
+ * neighborhood or city name; NEIGHBORHOODS lists the curated set used by the
+ * seed data and surfaced in tool docs.
+ */
+export type Neighborhood = string;
+export type KnownNeighborhood = (typeof NEIGHBORHOODS)[number];
 
 export interface Merchant {
   id: string;

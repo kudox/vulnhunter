@@ -6,7 +6,7 @@ Local merchants have inventory that expires worthless every day: tonight's empty
 
 The business model: **merchants pay only on redemption** (a 12% platform fee at confirmation), never for impressions. Sponsored placement exists but is bounded and always disclosed in results (`"sponsored": true`).
 
-This is a working scaffold: the full offer lifecycle runs end-to-end against an in-memory store seeded with fictional San Francisco merchants. Seed offer times are generated relative to server start, so a fresh server always has inventory "tonight" and "this weekend."
+This is a working scaffold: the full offer lifecycle runs end-to-end against an in-memory store seeded with fictional San Francisco merchants. Seed offer times are generated relative to server start, so a fresh server always has inventory "tonight" and "this weekend." With an Eventbrite API token, the server also syncs **real live events** from connected Eventbrite organizations into the same offer pool (see below).
 
 ## Tools
 
@@ -61,6 +61,31 @@ TRANSPORT=http PORT=3000 npm start   # serves streamable HTTP on /mcp
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
+## Eventbrite integration
+
+With a token, the server ingests live events from your Eventbrite organization(s) and turns the under-sold ones into LastCall offers alongside (or instead of) the seed data:
+
+```bash
+EVENTBRITE_API_TOKEN=your_private_token npm start        # seed + real events
+EVENTBRITE_API_TOKEN=... LASTCALL_SEED=off npm start     # real events only
+```
+
+Get a private token at eventbrite.com → Account Settings → Developer Links → API Keys. Verify the wiring without a token via the fixture suite: `npm run test:eventbrite`.
+
+**How it works.** Eventbrite retired its public event-search API in 2020, so ingestion is organization-scoped: the token's orgs are enumerated (`/users/me/organizations/`), their live events pulled with `expand=venue,ticket_availability`, and per-event ticket classes fetched for real `quantity_total`/`quantity_sold` numbers. That constraint matches the supply model anyway — offers come from merchants who connected their account, not from scraping. Each sync then applies the **promotion rule** to decide what becomes an offer:
+
+| Rule | Default | Env override |
+|---|---|---|
+| Discount off face value | 25% | `LASTCALL_EB_DISCOUNT_PCT` |
+| Claim cutoff before start | 2h | `LASTCALL_EB_CLAIM_CUTOFF_HOURS` |
+| Only promote events under this sold ratio | 80% | `LASTCALL_EB_MAX_SOLD_RATIO` |
+| Max spots released per promotion | 40 | `LASTCALL_EB_MAX_SPOTS` |
+| Ignore events further out than | 14 days | `LASTCALL_EB_MAX_DAYS_OUT` |
+
+Sold-out, free/unpriced, well-selling, and far-future events are skipped (each skip is logged with its reason). Face value is the cheapest paid ticket tier; if ticket classes aren't readable on the token, pricing falls back to the `ticket_availability` expansion. Venues become merchants; SF postal codes map to neighborhoods. Re-sync runs every 30 minutes (`EVENTBRITE_REFRESH_MINUTES`, `0` to disable) and preserves spots consumed by active local holds. `EVENTBRITE_ORG_IDS` (comma-separated) restricts which orgs sync.
+
+**Scaffold limitation:** claims and confirmations are local to LastCall — they don't write holds back to Eventbrite, so a spot confirmed here could in principle sell on Eventbrite too. The production fix is writing holds/orders through the Eventbrite API (or taking over ticketing for the promoted allotment) — same attribution argument as owning checkout.
+
 ## Architecture
 
 ```
@@ -73,6 +98,9 @@ src/
 ├── store/
 │   ├── store.ts        # OfferStore interface + in-memory implementation
 │   └── seed.ts         # demo SF merchants/offers, times relative to now
+├── services/
+│   ├── eventbrite.ts            # Eventbrite v3 API client (injectable fetch)
+│   └── eventbriteInventory.ts   # promotion rules + event -> offer mapping (pure)
 └── tools/              # one file per tool
 ```
 
@@ -90,8 +118,8 @@ Deliberately out of scope for the scaffold, in rough build order:
 
 1. **Postgres store** — same `OfferStore` contract, row-level locking on claims.
 2. **Payments in the confirm step** — agentic checkout (e.g. Stripe's Machine Payments Protocol) so attribution is airtight and the platform fee is clipped at the source.
-3. **Merchant inventory feeds** — Eventbrite/Ticketmaster (events), Square/Toast (restaurants), Mindbody (fitness/wellness) instead of hand-entered offers.
-4. **Merchant rules engine** — "any show under 60% sold within 48h of start → 25% off, max 40 tickets, never Saturdays" evaluated against the feed.
+3. **More inventory feeds** — Eventbrite is wired (see above); next: Ticketmaster (events), Square/Toast (restaurants), Mindbody (fitness/wellness), plus write-back of holds to the source system.
+4. **Per-merchant rules engine** — the global promotion rule becomes per-merchant config: "any show under 60% sold within 48h of start → 25% off, max 40 tickets, never Saturdays."
 5. **Merchant-facing MCP server** — merchants post and tune promos through their own AI assistant.
 6. **Auth + rate limiting** — OAuth for the HTTP transport; per-client quotas.
 7. **Cancellation/refund policy** — releasing confirmed bookings, merchant-configurable.

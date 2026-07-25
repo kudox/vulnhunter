@@ -12,7 +12,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "clean": "rm -rf dist",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "test:eventbrite": "tsx scripts/eventbrite-test.ts",
+    "test": "npm run smoke && npm run test:eventbrite"
   },
   "engines": {
     "node": ">=18"

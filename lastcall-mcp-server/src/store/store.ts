@@ -26,6 +26,12 @@ export interface OfferStore {
   getClaim(claimIdOrCode: string): Claim | undefined;
   confirmClaim(claimIdOrCode: string, now?: Date): StoreResult<Claim>;
   releaseClaim(claimIdOrCode: string, now?: Date): StoreResult<Claim>;
+  /**
+   * Merge inventory from an external feed (e.g. an Eventbrite sync). Existing
+   * offers with the same ID are refreshed in place; spots consumed by active
+   * local holds/confirmations stay consumed.
+   */
+  upsertInventory(merchants: Merchant[], offers: Offer[]): void;
 }
 
 function newId(prefix: string): string {
@@ -43,10 +49,37 @@ export class InMemoryOfferStore implements OfferStore {
   private readonly claims = new Map<string, Claim>();
   private readonly claimsByCode = new Map<string, string>();
 
-  constructor(now: Date = new Date()) {
-    const seed = buildSeed(now);
-    for (const merchant of seed.merchants) this.merchants.set(merchant.id, merchant);
-    for (const offer of seed.offers) this.offers.set(offer.id, offer);
+  constructor(now: Date = new Date(), options: { seed?: boolean } = {}) {
+    if (options.seed ?? true) {
+      const seed = buildSeed(now);
+      for (const merchant of seed.merchants) this.merchants.set(merchant.id, merchant);
+      for (const offer of seed.offers) this.offers.set(offer.id, offer);
+    }
+  }
+
+  upsertInventory(merchants: Merchant[], offers: Offer[]): void {
+    this.sweepExpiredHolds(new Date());
+    for (const merchant of merchants) this.merchants.set(merchant.id, merchant);
+
+    // Spots held or confirmed locally aren't reflected in the external feed's
+    // availability, so subtract them when refreshing an existing offer.
+    const activeClaimedByOffer = new Map<string, number>();
+    for (const claim of this.claims.values()) {
+      if (claim.status === "held" || claim.status === "confirmed") {
+        activeClaimedByOffer.set(
+          claim.offerId,
+          (activeClaimedByOffer.get(claim.offerId) ?? 0) + claim.partySize,
+        );
+      }
+    }
+
+    for (const offer of offers) {
+      const locallyClaimed = activeClaimedByOffer.get(offer.id) ?? 0;
+      this.offers.set(offer.id, {
+        ...offer,
+        remainingQuantity: Math.max(0, offer.remainingQuantity - locallyClaimed),
+      });
+    }
   }
 
   /**
@@ -80,7 +113,12 @@ export class InMemoryOfferStore implements OfferStore {
       if (offer.claimDeadline.getTime() <= now.getTime()) return false;
       if (offer.remainingQuantity < (filters.partySize ?? 1)) return false;
       if (filters.category && offer.category !== filters.category) return false;
-      if (filters.neighborhood && offer.neighborhood !== filters.neighborhood) return false;
+      if (
+        filters.neighborhood &&
+        offer.neighborhood.toLowerCase() !== filters.neighborhood.toLowerCase()
+      ) {
+        return false;
+      }
       if (filters.partySize !== undefined) {
         if (filters.partySize < offer.minPartySize || filters.partySize > offer.maxPartySize) {
           return false;
