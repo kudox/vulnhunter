@@ -17,7 +17,10 @@ import {
 } from "../src/services/eventbriteInventory.js";
 import { InMemoryOfferStore } from "../src/store/store.js";
 
-const NOW = new Date("2026-07-25T18:00:00Z");
+// Real clock, not a pinned date: fixture times are relative offsets, and the
+// store's lazy hold-sweep uses wall-clock time — a pinned past NOW makes
+// fresh holds look expired days later.
+const NOW = new Date();
 const hours = (h: number): string => new Date(NOW.getTime() + h * 3_600_000).toISOString();
 
 function assert(condition: unknown, message: string): asserts condition {

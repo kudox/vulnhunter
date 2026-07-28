@@ -18,7 +18,8 @@ import type { FetchLike } from "../src/services/eventbrite.js";
 import { InMemoryOfferStore } from "../src/store/store.js";
 import type { Merchant, Offer } from "../src/types.js";
 
-const NOW = new Date("2026-07-25T18:00:00Z");
+// Real clock, not a pinned date — see eventbrite-test.ts for why.
+const NOW = new Date();
 const hours = (h: number): string => new Date(NOW.getTime() + h * 3_600_000).toISOString();
 
 function assert(condition: unknown, message: string): asserts condition {
