@@ -27,8 +27,15 @@ again if forgotten.
 - Ranking: listings score urgency-only (+small free boost) so claimable offers generally lead without burying listings.
 - Ingest isolates adapter failures (one broken source doesn't sink the sync) and re-syncs each 60 min (`LASTCALL_INGEST_REFRESH_MINUTES`).
 
+**Live validation (real API key, 2026-07-28)**
+- First real sync: **142 SF events ingested, 5 skipped (4 cancelled, 1 rescheduled), 14 merged as duplicates, 128 upserted** alongside the 16 seed offers. Categories: 55 live_music, 31 comedy, 17 theater, 17 art_culture, 8 sports. Real inventory verified: Giants at Oracle Park, touring Broadway at the Orpheum, Punch Line comedy, The Chapel, Brick & Mortar — plus genuinely **free** events (open mics/karaoke at $0) proving the free-tier goal.
+- Data-quality finding: only **31/128 listings had priceRanges** — `priceUnknown` is the common case on TM, so most listings are invisible to `max_price` searches. Future enrichment (venue JSON-LD, event-page scrape) should backfill prices.
+- Multi-showtime runs (same show, 3 showtimes) correctly survive dedup as distinct events; the 14 merges were true duplicates.
+- Many TM events resolve to TicketWeb URLs (TM subsidiary) — link-outs work fine either way.
+
 **Gotchas**
 - Ticketmaster Discovery: date params must be ISO **without milliseconds**; deep paging is rejected past item ~1000 (we cap at 5×100/page); `dates.start` can be date-only (TBA time) — skip those; check `dates.status.code` for cancelled/postponed events.
+- Node's global fetch ignores `HTTPS_PROXY` by default — in proxied environments (like remote sessions) run with `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=<ca-bundle>`.
 - Ingest anchors must exclude the syncing adapter's own prior records, or every re-sync deduplicates itself away.
 - Added "sports" to `CATEGORIES` for TM's Sports segment — category enum is ours to extend, but tool descriptions embed it, so they update automatically via the constant.
 
