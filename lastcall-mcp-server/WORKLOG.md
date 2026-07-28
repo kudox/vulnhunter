@@ -32,6 +32,7 @@ again if forgotten.
 **Gotchas**
 - **Live Nation JSON-LD startDates are timezone-naive** ("2026-07-31T20:00:00"); naive `new Date()` reads them as UTC and an 8pm show becomes 1pm PT. This also silently broke dedup (times off by 7h > ±45min window) — the corroboration count going 0 → 8 after the fix was the tell.
 - Live Nation venue pages embed ticketmaster.com URLs in their JSON-LD — crawler output for those venues is mostly redundant with the Discovery API (dedup handles it), but it still catches events the TM city query misses.
+- **Don't pin test clocks to a fixed date**: the store's lazy hold-sweep uses wall-clock time, so tests that pinned NOW to their writing date broke days later (fresh holds looked expired). Test NOW must be `new Date()` with all fixture times as relative offsets (fixed in `11f3cd6`).
 
 ---
 
