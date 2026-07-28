@@ -54,8 +54,12 @@ export async function runListingIngest(
   const anchors: DedupRecord[] = store
     .allOffers()
     // Only anchor on records not owned by these adapters — otherwise every
-    // re-sync would drop its own previous batch as "duplicates".
-    .filter((offer) => !adapters.some((a) => offer.source === a.name))
+    // re-sync would drop its own previous batch as "duplicates". Sources may
+    // be prefixed per origin ("jsonld:<host>"), so match on the prefix too.
+    .filter(
+      (offer) =>
+        !adapters.some((a) => offer.source === a.name || offer.source.startsWith(`${a.name}:`)),
+    )
     .map((offer) => ({
       offer,
       venueName: store.getMerchant(offer.merchantId)?.name ?? "",

@@ -82,6 +82,17 @@ The Discovery API has genuinely public search (free tier: 5,000 calls/day). The 
 
 New adapters implement `SourceAdapter` (`src/services/adapters/types.ts`) and get dedup, provenance, and refresh for free via the shared ingest pipeline (`src/services/ingest.ts`).
 
+## Venue-website crawler (OSINT source #2)
+
+```bash
+LASTCALL_JSONLD=on npm start                          # crawl the curated SF venue list
+LASTCALL_JSONLD=on LASTCALL_JSONLD_VENUES=https://... # or your own comma-separated URLs
+```
+
+Extracts schema.org `Event` JSON-LD from venue event pages (`src/services/adapters/sfVenues.ts` holds the curated list — adding a venue is adding a URL). Politeness is built in: robots.txt honored per host, identifiable `LastCallBot` User-Agent, sequential fetches, per-venue error isolation. Timezone-naive datetimes (a Live Nation quirk) are interpreted as venue-local. Opt-in via `LASTCALL_JSONLD=on` since it makes outbound requests to third-party sites. Verify offline: `npm run test:jsonld`.
+
+Live-yield reality (2026-07-28 crawl): calendar-page JSON-LD is common on Live Nation venue sites but rare elsewhere — many venues render events client-side or only embed JSON-LD on per-event detail pages, and some sites bot-wall automated fetches. The crawler's near-term value is corroboration + gap-filling next to the Ticketmaster feed; a follow-event-links mode (fetching detail pages) is the planned yield upgrade.
+
 ## Eventbrite integration
 
 With a token, the server ingests live events from your Eventbrite organization(s) and turns the under-sold ones into LastCall offers alongside (or instead of) the seed data:

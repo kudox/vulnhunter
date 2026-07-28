@@ -13,7 +13,9 @@ the session date that shipped them.
 ## Backlog
 
 ### OSINT event ingestion (see [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md))
-- [ ] Remaining Phase 1 adapters: schema.org JSON-LD venue crawler (seed ~30 SF venues), ICS feed set (SFPL, Rec & Parks), Funcheap (added: 2026-07-25)
+- [ ] Remaining Phase 1 adapters: ICS feed set (SFPL, Rec & Parks), Funcheap (added: 2026-07-25)
+- [ ] JSON-LD crawler follow-links mode: fetch per-event detail pages from calendar pages — the yield fix for venues whose calendars carry no inline JSON-LD (added: 2026-07-28)
+- [ ] Prune/annotate the SF venue list from live-crawl findings; consider platform-specific fetchers for bot-walled venues (SFJAZZ, Exploratorium, de Young…) or cover them via aggregators instead (added: 2026-07-28)
 - [ ] Phase 2 adapters: Luma calendars, 19hz.info, DoTheBay, newsletter-inbox pipeline (dedicated mailbox + LLM extraction) (added: 2026-07-25)
 - [ ] Phase 3 adapters: Meetup public pages, Resident Advisor, Google Events (SerpApi) as gap-filler, Reddit weekly threads (added: 2026-07-25)
 - [ ] Anchor enrichment: record corroborating listing sources on existing offers instead of only logging the merge (added: 2026-07-25)
@@ -36,6 +38,12 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-28 (JSON-LD venue crawler)
+- [x] Schema.org JSON-LD crawler adapter: robots.txt compliance, identifiable UA, per-venue error isolation, @graph/ItemList walking, stable hash IDs, naive-datetime → venue-local timezone handling
+- [x] Curated SF venue seed list (23 venues, config-not-code)
+- [x] Ingest anchor-filter fix for prefixed sources (`jsonld:<host>` no longer self-dedupes on re-sync)
+- [x] `npm run test:jsonld` fixture suite; live validation runs (TM solo + combined TM+crawler with cross-source corroboration)
 
 ### Session 2026-07-25 (OSINT Phase 1 foundation)
 - [x] Two-tier inventory model: `kind: "offer" | "listing"`, `source`/`sourceUrl`/`sources` provenance, `priceUnknown`; listings searchable, not claimable

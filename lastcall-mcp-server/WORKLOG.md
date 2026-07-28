@@ -10,6 +10,31 @@ again if forgotten.
 
 ---
 
+## 2026-07-28 — JSON-LD venue crawler (OSINT source #2)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- `JsonLdCrawlerAdapter`: extracts schema.org `Event` JSON-LD from venue pages. Robots.txt honored per host (minimal `User-agent: *` parser), identifiable `LastCallBot` UA, sequential fetches, per-venue error isolation, @graph/ItemList/subEvent walking, stable IDs (`sha256(host|url|startDate)`), Event-subtype → category mapping, relative URL resolution.
+- Curated 23-venue SF seed list (`sfVenues.ts`); opt-in via `LASTCALL_JSONLD=on` (it fetches third-party sites); `LASTCALL_JSONLD_VENUES` override.
+- Ingest fix: anchor filter now matches prefixed sources (`jsonld:<host>`), otherwise every re-sync self-deduplicated its own prior batch.
+- `npm run test:jsonld` fixture suite.
+
+**Live validation (2026-07-28)**
+- Combined TM + crawler run: 142 TM + 9 crawler events, **22 merged, 129 upserted, 8 events corroborated by two sources** (e.g. Steve-O at Cobb's, Old 97's at the Fillmore carrying both `ticketmaster` and `jsonld:` provenance) — the dedup engine's first real-world cross-source merges, and 1 crawler-only event TM's city search missed.
+- **Yield reality check**: only 2/23 venues emit JSON-LD on their calendar pages (both Live Nation-run). 5 venues bot-wall us (403: SFJAZZ, The Midway, de Young, Exploratorium, Commonwealth Club); most others are client-rendered SPAs with JSON-LD only on per-event detail pages. Conclusion: crawler as built = corroboration + gap-filler; the yield unlock is a follow-event-links mode (backlogged), and bot-walled venues are better covered via aggregators.
+
+**Design decisions**
+- Naive datetimes are interpreted in a configurable venue timezone (default America/Los_Angeles) via an Intl-based offset computation — no timezone library dependency.
+- Date-only `startDate` (all-day/TBA) is skipped rather than inventing a time.
+- Non-USD prices are treated as unknown rather than mis-parsed.
+
+**Gotchas**
+- **Live Nation JSON-LD startDates are timezone-naive** ("2026-07-31T20:00:00"); naive `new Date()` reads them as UTC and an 8pm show becomes 1pm PT. This also silently broke dedup (times off by 7h > ±45min window) — the corroboration count going 0 → 8 after the fix was the tell.
+- Live Nation venue pages embed ticketmaster.com URLs in their JSON-LD — crawler output for those venues is mostly redundant with the Discovery API (dedup handles it), but it still catches events the TM city query misses.
+
+---
+
 ## 2026-07-25 — OSINT Phase 1: listing tier, dedup engine, Ticketmaster adapter
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

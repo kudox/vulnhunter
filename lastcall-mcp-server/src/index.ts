@@ -20,6 +20,8 @@ import {
   buildEventbriteInventory,
   promotionRuleFromEnv,
 } from "./services/eventbriteInventory.js";
+import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
+import { SF_VENUE_PAGES } from "./services/adapters/sfVenues.js";
 import {
   TicketmasterAdapter,
   ticketmasterConfigFromEnv,
@@ -91,8 +93,24 @@ async function startListingIngest(store: OfferStore): Promise<void> {
   const tmConfig = ticketmasterConfigFromEnv();
   if (tmConfig) adapters.push(new TicketmasterAdapter(tmConfig));
 
+  // Venue-website crawler: no API key, but it makes outbound requests to
+  // third-party sites, so it's opt-in. LASTCALL_JSONLD_VENUES overrides the
+  // curated SF list with comma-separated URLs.
+  if (process.env.LASTCALL_JSONLD === "on") {
+    const urls = process.env.LASTCALL_JSONLD_VENUES?.split(",")
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const venues = urls
+      ? urls.map((url) => ({ url, name: new URL(url).hostname }))
+      : SF_VENUE_PAGES;
+    const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
+    adapters.push(new JsonLdCrawlerAdapter({ venues, maxDaysOut }));
+  }
+
   if (adapters.length === 0) {
-    console.error("Listing ingest disabled (no source keys set, e.g. TICKETMASTER_API_KEY)");
+    console.error(
+      "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY and/or LASTCALL_JSONLD=on)",
+    );
     return;
   }
 
