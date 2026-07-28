@@ -10,6 +10,27 @@ again if forgotten.
 
 ---
 
+## 2026-07-28 — ICS feed adapter (OSINT source #3, the free-event layer)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- Dependency-free iCalendar parser (`src/services/ics.ts`): RFC 5545 line unfolding, TZID/UTC/floating datetime handling (reusing the shared naive-tz logic, now in `src/services/dates.ts`), text unescaping, DURATION parsing, and limited RRULE expansion — DAILY/WEEKLY with INTERVAL/COUNT/UNTIL/EXDATE; MONTHLY+ and ordinal BYDAY skipped with logged reasons rather than mis-expanded.
+- `IcsFeedAdapter` (`ics:<host>` sources, precedence 60): `assumeFree` feeds yield $0 listings (iCalendar has no price field), LOCATION zip regex → neighborhood, `webcal://` normalization, per-feed error isolation. Opt-in via `LASTCALL_ICS=on`; `LASTCALL_ICS_FEEDS` override.
+- `npm run test:ics` fixture suite.
+
+**Live validation (2026-07-28)**
+- **Meetup group iCals survived the 2025 API lockdown** — `meetup.com/<group>/events/ical/` is public, no auth. This is the practical Meetup route (better than the page-scraping fallback the OSINT plan assumed).
+- Yield: 3 free listings from verified feeds — SF Civic Tech's weekly hack night correctly RRULE-expanded into 2 occurrences, plus a real SF Python meetup. Feed probing found sfpython/sfruby/sfnode live, many candidate group slugs 404.
+- The original Noisebridge Google Calendar URL is dead — curated list now holds only live-verified feeds; dead-feed pruning via per-feed sync logs works as designed.
+
+**Gotchas**
+- RFC 5545 unfolding removes CRLF + exactly **one** whitespace char — a folded line preserving a real space needs two leading spaces. My first test fixture got this wrong, not the parser.
+- Meetup iCal DTSTARTs come with TZID params; Google Calendar public feeds use UTC Z-times; both paths needed.
+- SFPL and SF Rec & Parks don't expose obvious public ICS endpoints (their platforms hide them) — finding proper civic feeds is a real research task, backlogged; Meetup groups carry the free-tier torch meanwhile.
+
+---
+
 ## 2026-07-28 — JSON-LD venue crawler (OSINT source #2)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

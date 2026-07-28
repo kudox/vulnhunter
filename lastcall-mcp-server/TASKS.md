@@ -13,7 +13,9 @@ the session date that shipped them.
 ## Backlog
 
 ### OSINT event ingestion (see [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md))
-- [ ] Remaining Phase 1 adapters: ICS feed set (SFPL, Rec & Parks), Funcheap (added: 2026-07-25)
+- [ ] Remaining Phase 1 adapter: Funcheap (added: 2026-07-25)
+- [ ] Grow the ICS feed list: find working civic feeds (SFPL/Rec & Parks event calendars don't expose obvious public ICS; investigate their platforms), more Meetup groups, Luma calendar ICS URLs (added: 2026-07-28)
+- [ ] MONTHLY RRULE expansion (BYDAY ordinals like 2TU) — currently skipped with reasons (added: 2026-07-28)
 - [ ] JSON-LD crawler follow-links mode: fetch per-event detail pages from calendar pages — the yield fix for venues whose calendars carry no inline JSON-LD (added: 2026-07-28)
 - [ ] Prune/annotate the SF venue list from live-crawl findings; consider platform-specific fetchers for bot-walled venues (SFJAZZ, Exploratorium, de Young…) or cover them via aggregators instead (added: 2026-07-28)
 - [ ] Phase 2 adapters: Luma calendars, 19hz.info, DoTheBay, newsletter-inbox pipeline (dedicated mailbox + LLM extraction) (added: 2026-07-25)
@@ -38,6 +40,12 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-28 (ICS feed adapter)
+- [x] Dependency-free iCalendar parser: unfolding, TZID/UTC/floating datetimes, escaping, DURATION, DAILY/WEEKLY RRULE expansion with INTERVAL/COUNT/UNTIL/EXDATE
+- [x] IcsFeedAdapter with assumeFree pricing, LOCATION zip -> neighborhood, webcal:// normalization, per-feed error isolation
+- [x] Curated feed list (live-verified Meetup group iCals); `npm run test:ics`
+- [x] Live validation: 3 free listings incl. RRULE-expanded weekly hack nights
 
 ### Session 2026-07-28 (JSON-LD venue crawler)
 - [x] Schema.org JSON-LD crawler adapter: robots.txt compliance, identifiable UA, per-venue error isolation, @graph/ItemList walking, stable hash IDs, naive-datetime → venue-local timezone handling

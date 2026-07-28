@@ -16,7 +16,8 @@
     "test:eventbrite": "tsx scripts/eventbrite-test.ts",
     "test:listings": "tsx scripts/listings-test.ts",
     "test:jsonld": "tsx scripts/jsonld-test.ts",
-    "test": "npm run smoke && npm run test:eventbrite && npm run test:listings && npm run test:jsonld"
+    "test:ics": "tsx scripts/ics-test.ts",
+    "test": "npm run smoke && npm run test:eventbrite && npm run test:listings && npm run test:jsonld && npm run test:ics"
   },
   "engines": {
     "node": ">=18"

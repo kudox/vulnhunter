@@ -93,6 +93,15 @@ Extracts schema.org `Event` JSON-LD from venue event pages (`src/services/adapte
 
 Live-yield reality (2026-07-28 crawl): calendar-page JSON-LD is common on Live Nation venue sites but rare elsewhere — many venues render events client-side or only embed JSON-LD on per-event detail pages, and some sites bot-wall automated fetches. The crawler's near-term value is corroboration + gap-filling next to the Ticketmaster feed; a follow-event-links mode (fetching detail pages) is the planned yield upgrade.
 
+## ICS calendar feeds (OSINT source #3 — the free-event layer)
+
+```bash
+LASTCALL_ICS=on npm start                                    # curated SF community feeds
+LASTCALL_ICS=on LASTCALL_ICS_FEEDS=webcal://...,https://...  # your own feeds
+```
+
+Ingests published iCalendar feeds — Google Calendar public ICS, Meetup group iCals (`meetup.com/<group>/events/ical/`, still public post-API-lockdown), library/city calendars. These are explicitly machine-readable, extremely stable, and skew toward free community events no ticketing API carries. The dependency-free parser (`src/services/ics.ts`) handles line unfolding, TZID/UTC/floating datetimes, text escaping, DURATION, and **recurring events** (DAILY/WEEKLY RRULE expansion with INTERVAL/COUNT/UNTIL/EXDATE — the weekly-workshop pattern that dominates civic calendars; MONTHLY+ rules are skipped with logged reasons rather than mis-expanded). Feeds flagged `assumeFree` yield $0 listings since iCalendar has no price field; others get `priceUnknown`. Curated list in `src/services/adapters/sfIcsFeeds.ts` (all verified live); `webcal://` URLs accepted. Verify offline: `npm run test:ics`.
+
 ## Eventbrite integration
 
 With a token, the server ingests live events from your Eventbrite organization(s) and turns the under-sold ones into LastCall offers alongside (or instead of) the seed data:
@@ -136,9 +145,15 @@ src/
 │   ├── dedup.ts                 # cross-source dedup/merge (precedence + provenance)
 │   ├── ingest.ts                # shared listing-ingest pipeline
 │   ├── neighborhoods.ts         # SF zip -> neighborhood mapping
+│   ├── dates.ts                 # timezone-aware naive-datetime parsing
+│   ├── ics.ts                   # dependency-free iCalendar parser + RRULE expansion
 │   └── adapters/
 │       ├── types.ts             # SourceAdapter contract
-│       └── ticketmaster.ts      # Discovery API adapter (listings)
+│       ├── ticketmaster.ts      # Discovery API adapter (listings)
+│       ├── jsonldCrawler.ts     # venue-website schema.org crawler
+│       ├── sfVenues.ts          # curated venue seed list
+│       ├── icsFeeds.ts          # ICS/iCal feed adapter
+│       └── sfIcsFeeds.ts        # curated community-calendar feed list
 └── tools/              # one file per tool
 ```
 

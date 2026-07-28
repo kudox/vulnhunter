@@ -20,7 +20,9 @@ import {
   buildEventbriteInventory,
   promotionRuleFromEnv,
 } from "./services/eventbriteInventory.js";
+import { IcsFeedAdapter } from "./services/adapters/icsFeeds.js";
 import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
+import { SF_ICS_FEEDS } from "./services/adapters/sfIcsFeeds.js";
 import { SF_VENUE_PAGES } from "./services/adapters/sfVenues.js";
 import {
   TicketmasterAdapter,
@@ -107,9 +109,23 @@ async function startListingIngest(store: OfferStore): Promise<void> {
     adapters.push(new JsonLdCrawlerAdapter({ venues, maxDaysOut }));
   }
 
+  // ICS/iCal feeds: free civic + community events. Opt-in like the crawler.
+  // LASTCALL_ICS_FEEDS overrides the curated list with comma-separated URLs
+  // (webcal:// accepted); overridden feeds default to unknown price.
+  if (process.env.LASTCALL_ICS === "on") {
+    const urls = process.env.LASTCALL_ICS_FEEDS?.split(",")
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const feeds = urls
+      ? urls.map((url) => ({ url, name: new URL(url.replace(/^webcal:\/\//i, "https://")).hostname }))
+      : SF_ICS_FEEDS;
+    const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
+    adapters.push(new IcsFeedAdapter({ feeds, maxDaysOut }));
+  }
+
   if (adapters.length === 0) {
     console.error(
-      "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY and/or LASTCALL_JSONLD=on)",
+      "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY, LASTCALL_JSONLD=on, and/or LASTCALL_ICS=on)",
     );
     return;
   }
