@@ -42,7 +42,11 @@ the session date that shipped them.
 - [ ] Merchant-facing MCP server (post/tune promos via the merchant's own agent) (added: 2026-07-25)
 - [ ] Demand intelligence: aggregate query/claim analytics for merchant reporting (added: 2026-07-25)
 
-### Business
+### Business (pilot: [docs/MERCHANT-PILOT-PLAYBOOK.md](./docs/MERCHANT-PILOT-PLAYBOOK.md))
+- [ ] Run the Lane-1 walk-in pilot: pick the city (Sacramento walkable vs SF strategic), print one-pagers + staff cards, target 5–10 merchants (comedy anchor vertical first) (added: 2026-07-29)
+- [ ] Have a lawyer review the pilot agreement template before first signature (added: 2026-07-29)
+- [ ] Lane-2 remote pilot: build the prospect list from snapshot data (low sell-through Eventbrite organizers) once a few weeks of history accumulate (added: 2026-07-29)
+- [ ] Build the weekly merchant stats email (manual → scripted) — retention, conversion evidence, and demand-intelligence v0 in one artifact (added: 2026-07-29)
 - [ ] Test the loop end-to-end with a real Eventbrite account + test event (added: 2026-07-25)
 - [ ] Get listed in MCP registries / connector directories once remotely deployable (added: 2026-07-25)
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)

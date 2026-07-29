@@ -10,6 +10,20 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Merchant pilot playbook (docs/MERCHANT-PILOT-PLAYBOOK.md)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Drafted** the supply-side plan answering "how do I even approach merchants":
+- **Trust ladder**: crawl (pay-at-door, LastCall handles no money, 60 days free) → walk (Stripe prepay + 12%) → run (rules engine). Don't skip crawl — the pilot manufactures the redemption stats that make the paid ask trivial.
+- Pilot design: 5–10 clustered merchants, manual onboarding (you are the dashboard), the Monday stats email as retention/conversion/demand-intelligence-v0 in one artifact.
+- Targets in order: comedy clubs ("papering the room" is an existing habit — automate it, don't create it), owner-operated food/drink with a dead window, fitness studios. ~3 yeses per 10 asks is the expected rate.
+- Lane-2 variant is remote/email — prospect list generated from our own snapshot data (low sell-through organizers); OAuth or a merchant-created code batch as the low-trust rung. Geography insight: Lane-1 walk-ins can pilot in Sacramento (where the user's feet are) while listings keep building the SF story.
+- Make-good policy (instant refund, one conversation, delist) budgeted as pilot cost; explicit success criteria (≥10 redemptions/merchant, ≥3 conversions) with both failure modes read as information.
+- Appendices: walk-in pitch script, one-page pilot agreement template (flagged for lawyer review), staff instruction card.
+
+---
+
 ## 2026-07-29 — Payments strategy decided (docs/PAYMENTS-STRATEGY.md)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

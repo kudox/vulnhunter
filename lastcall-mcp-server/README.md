@@ -8,7 +8,7 @@ The business model: **merchants pay only on redemption** (a 12% platform fee at 
 
 This is a working scaffold: the full offer lifecycle runs end-to-end against an in-memory store seeded with fictional San Francisco merchants. Seed offer times are generated relative to server start, so a fresh server always has inventory "tonight" and "this weekend." With an Eventbrite API token, the server also syncs **real live events** from connected Eventbrite organizations into the same offer pool (see below).
 
-**Project tracking**: [TASKS.md](./TASKS.md) (backlog/WIP/done) · [WORKLOG.md](./WORKLOG.md) (per-session decisions and gotchas) · [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md) (free/non-merchant event ingestion plan) · [docs/PAYMENTS-STRATEGY.md](./docs/PAYMENTS-STRATEGY.md) (three-lane payments/monetization decision).
+**Project tracking**: [TASKS.md](./TASKS.md) (backlog/WIP/done) · [WORKLOG.md](./WORKLOG.md) (per-session decisions and gotchas) · [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md) (free/non-merchant event ingestion plan) · [docs/PAYMENTS-STRATEGY.md](./docs/PAYMENTS-STRATEGY.md) (three-lane payments/monetization decision) · [docs/MERCHANT-PILOT-PLAYBOOK.md](./docs/MERCHANT-PILOT-PLAYBOOK.md) (supply-side pilot: trust ladder, pitch script, agreement template).
 
 ## Tools
 
