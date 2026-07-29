@@ -25,7 +25,9 @@ the session date that shipped them.
 - [ ] Phase-1 done-bar check: ≥50 deduplicated free+paid events for a given SF evening vs manual Funcheap/Chronicle spot-check (added: 2026-07-25)
 
 ### Platform
-- [ ] Postgres `OfferStore` implementation (row-level locking on claims) (added: 2026-07-25)
+- [ ] Multi-instance claim path: atomic `UPDATE ... WHERE remaining >= N RETURNING` in Postgres so several server instances can safely share inventory (current design is single-node write-behind) (added: 2026-07-29)
+- [ ] First analytics queries over event_snapshots: sell-through velocity by category/venue, sell-out prediction, discount-timing correlation (recorder is live; analysis unbuilt) (added: 2026-07-29)
+- [ ] Snapshot event disappearance (event vanishing from a source is itself a signal — likely sold out or cancelled upstream) (added: 2026-07-29)
 - [ ] Payments in confirm step — Stripe agentic checkout / Machine Payments Protocol (added: 2026-07-25)
 - [ ] Eventbrite write-back: push holds/orders to Eventbrite to close the double-sell gap (see WORKLOG 2026-07-25 gotcha) (added: 2026-07-25)
 - [ ] Per-merchant promotion rules engine (replace global `LASTCALL_EB_*` rule) (added: 2026-07-25)
@@ -41,6 +43,12 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-29 (Postgres + snapshots milestone)
+- [x] Hybrid persistence: Postgres (`DATABASE_URL`) holds claims + merchants; listings stay in-memory; everything no-ops without a database
+- [x] Boot rehydration: open claims restored, seats re-deducted (restart can't resell a confirmed spot); lapsed holds excluded
+- [x] Analytics recorder: append-only `event_snapshots` (delta-only via fingerprints: remaining/price/start/corroboration) + `search_log` (filters + result counts, no user identity; zero-result searches included)
+- [x] `npm run test:analytics` (delta logic, no-op safety) + `npm run test:pg` integration suite — verified against a real local PostgreSQL 16, including cross-process rehydration through the built server
 
 ### Session 2026-07-29 (Funcheap adapter — Phase 1 sources complete)
 - [x] FuncheapAdapter: date-archive JSON-LD ingestion, SF region filter, title-paren + zip neighborhoods, keyword category inference, HTML entity decoding (shared `text.ts`), robots compliance, per-day error isolation

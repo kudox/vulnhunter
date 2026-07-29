@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { HOLD_DURATION_MINUTES } from "../constants.js";
 import { claimToJson, dollars, toolError, toolResult } from "../format.js";
+import type { Analytics } from "../services/analytics.js";
 import type { OfferStore } from "../store/store.js";
 
 const inputShape = {
@@ -20,7 +21,11 @@ const inputShape = {
 const InputSchema = z.object(inputShape);
 type Input = z.infer<typeof InputSchema>;
 
-export function registerClaimOffer(server: McpServer, store: OfferStore): void {
+export function registerClaimOffer(
+  server: McpServer,
+  store: OfferStore,
+  analytics: Analytics,
+): void {
   server.registerTool(
     "lastcall_claim_offer",
     {
@@ -70,6 +75,8 @@ Error handling:
 
         const claim = result.value;
         const offer = store.getOffer(claim.offerId);
+        analytics.persistClaim(claim, offer);
+        if (offer) analytics.recordEventSnapshots([offer]); // remaining changed
         const structured = claimToJson(claim, offer);
 
         const text = [

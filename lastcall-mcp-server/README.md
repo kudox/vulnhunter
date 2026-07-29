@@ -63,6 +63,21 @@ TRANSPORT=http PORT=3000 npm start   # serves streamable HTTP on /mcp
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
+## Persistence + the analytics recorder (Postgres)
+
+```bash
+DATABASE_URL=postgres://... npm start        # e.g. a Neon/Supabase connection string
+LASTCALL_PG_SSL=on                            # force TLS if the URL lacks sslmode=require
+```
+
+The store is a **hybrid**: listings stay in-memory (they're a disposable cache, rebuilt from sources every sync), while Postgres durably holds what must survive restarts — and records the history that can't be backfilled:
+
+- **`claims` + `merchants`** — the money path. Every claim/confirm/release is written through as it happens; on boot, open claims (active holds and future confirmations) are rehydrated into the store and their seats re-deducted, so a server restart can't resell a confirmed spot.
+- **`event_snapshots`** — append-only, **delta-only** history of every listing: a row is written when an event first appears or when its remaining seats, price, start time, or source corroboration change. This is the sell-through-curve dataset (velocity, sell-out prediction, discount-timing analytics) — the recorder runs from day one precisely because history only accumulates forward.
+- **`search_log`** — structured demand exhaust from every search: filters (party size, budget, time window, category, neighborhood) and result counts, **never user identity**. Zero-result searches are logged too — unmet demand is the merchant-pitch dataset.
+
+Without `DATABASE_URL` everything no-ops: dev and all fixture suites run database-free. Schema is created idempotently on boot (`src/services/db.ts`). Design note: this is single-node write-behind — the in-memory store stays the synchronous decision-maker and Postgres follows; multi-instance deployments need the atomic-decrement claim path (backlogged) before scaling out. Integration test (needs a reachable database): `DATABASE_URL=... npm run test:pg`; unit tests for the delta recorder: `npm run test:analytics`.
+
 ## Two-tier inventory: offers vs listings
 
 Search results carry a `kind`:

@@ -330,4 +330,21 @@ export class InMemoryOfferStore implements OfferStore {
     const byCode = this.claimsByCode.get(claimIdOrCode.toUpperCase());
     return this.claims.get(byCode ?? claimIdOrCode);
   }
+
+  /**
+   * Re-attach a claim persisted by a previous process (boot hydration).
+   * Decrements inventory when the offer is already present; offers arriving
+   * in later syncs are handled by upsertInventory's active-claims deduction.
+   */
+  restoreClaim(claim: Claim): void {
+    if (this.claims.has(claim.id)) return;
+    this.claims.set(claim.id, { ...claim });
+    this.claimsByCode.set(claim.redemptionCode, claim.id);
+    if (claim.status === "held" || claim.status === "confirmed") {
+      const offer = this.offers.get(claim.offerId);
+      if (offer) {
+        offer.remainingQuantity = Math.max(0, offer.remainingQuantity - claim.partySize);
+      }
+    }
+  }
 }

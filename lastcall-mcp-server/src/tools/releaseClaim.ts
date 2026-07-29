@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { claimToJson, toolError, toolResult } from "../format.js";
+import type { Analytics } from "../services/analytics.js";
 import type { OfferStore } from "../store/store.js";
 
 const inputShape = {
@@ -13,7 +14,11 @@ const inputShape = {
 const InputSchema = z.object(inputShape);
 type Input = z.infer<typeof InputSchema>;
 
-export function registerReleaseClaim(server: McpServer, store: OfferStore): void {
+export function registerReleaseClaim(
+  server: McpServer,
+  store: OfferStore,
+  analytics: Analytics,
+): void {
   server.registerTool(
     "lastcall_release_claim",
     {
@@ -45,6 +50,8 @@ Error handling:
 
         const claim = result.value;
         const offer = store.getOffer(claim.offerId);
+        analytics.persistClaim(claim, offer);
+        if (offer) analytics.recordEventSnapshots([offer]); // remaining restored
         return toolResult(
           `Released hold \`${claim.id}\` on **${offer?.title ?? claim.offerId}** — ${claim.partySize} spot(s) returned to the pool.`,
           claimToJson(claim, offer),

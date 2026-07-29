@@ -9,6 +9,7 @@ import {
   NEIGHBORHOODS,
 } from "../constants.js";
 import { ResponseFormat, offerToJson, offerToMarkdown, toolError, toolResult } from "../format.js";
+import type { Analytics } from "../services/analytics.js";
 import type { OfferStore } from "../store/store.js";
 
 const inputShape = {
@@ -89,7 +90,11 @@ const inputShape = {
 const InputSchema = z.object(inputShape);
 type Input = z.infer<typeof InputSchema>;
 
-export function registerSearchOffers(server: McpServer, store: OfferStore): void {
+export function registerSearchOffers(
+  server: McpServer,
+  store: OfferStore,
+  analytics: Analytics,
+): void {
   server.registerTool(
     "lastcall_search_offers",
     {
@@ -186,6 +191,22 @@ Error handling:
           },
           now,
         );
+
+        // Structured demand exhaust: filters and result stats only, no user
+        // identity — aggregate demand is the product, individuals are not.
+        analytics.logSearch({
+          searchedAt: now,
+          query: params.query,
+          category: params.category,
+          neighborhood: params.neighborhood,
+          partySize: params.party_size,
+          maxPrice: params.max_price,
+          withinHours: params.within_hours,
+          minDiscountPct: params.min_discount_pct,
+          claimableOnly: params.claimable_only,
+          resultTotal: total,
+          topResultIds: offers.slice(0, 5).map((o) => o.id),
+        });
 
         if (offers.length === 0) {
           return toolResult(

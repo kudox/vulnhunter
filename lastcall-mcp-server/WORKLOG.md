@@ -10,6 +10,32 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Postgres + snapshots milestone
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- Hybrid persistence (`DATABASE_URL` enables; everything no-ops without it): Postgres holds **claims + merchants** (the money path) while listings remain the in-memory cache rebuilt from sources. `src/services/db.ts` (pg Pool, idempotent schema) + `src/services/analytics.ts` (fire-and-forget, failure-isolated writes — a DB hiccup logs and never breaks serving).
+- Boot rehydration: `loadOpenClaims` restores active holds + future confirmations; `store.restoreClaim` re-deducts seats for present offers, and `upsertInventory`'s active-claims deduction covers offers arriving in later syncs. A restart can't resell a confirmed spot.
+- **Analytics recorder** (the can't-backfill asset): append-only `event_snapshots` written delta-only via fingerprints (remaining, total, price, priceUnknown, startsAt, corroboration count — cosmetic text changes deliberately don't trigger rows); `search_log` capturing filters + result counts per search including zero-result searches (unmet demand), never user identity. Wired into every sync loop and every claim/confirm/release mutation.
+- Tests: `test:analytics` (pure delta logic + no-op safety, DB-free) and `test:pg` (real-database integration; auto-skips without DATABASE_URL so `npm test` stays hermetic).
+
+**Live validation (2026-07-29, local PostgreSQL 16)**
+- Integration suite green against a real database: idempotent schema, claim status transitions, rehydration excluding lapsed holds, inventory re-deduction, table-level delta-only verification (mutated event: exactly 2 rows), search log.
+- Built server booted against the same DB and logged `1 open claim(s) rehydrated` — a claim persisted by one process restored by another, which is the whole point.
+
+**Design decisions**
+- **Single-node write-behind, stated honestly**: the synchronous in-memory store remains the decision-maker; Postgres follows asynchronously. Race-free within one process (single-threaded JS); multi-instance sharing needs the atomic `UPDATE ... WHERE remaining >= N RETURNING` claim path — backlogged, not pretended.
+- Kept the `OfferStore` interface synchronous — persistence hooks live in the tools/sync layer (`Analytics`), so the six existing fixture suites and `InMemoryOfferStore` are untouched.
+- Snapshot fingerprint includes corroboration-source count (new source confirming an event is signal) and startsAt (reschedules matter); description/title changes don't trigger rows.
+- Privacy line held at the schema: `search_log` has no user column at all.
+
+**Gotchas**
+- `initdb` refuses to run as root (remote containers run as root) — `su postgres -s /bin/bash -c ...` with a data dir the postgres user can traverse (`/tmp/...`, not the root-owned scratchpad).
+- Analytics writes are fire-and-forget, so tests must allow a settle beat before asserting table contents.
+
+---
+
 ## 2026-07-29 — Funcheap adapter: Phase-1 sources complete
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

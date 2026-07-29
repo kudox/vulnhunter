@@ -21,6 +21,8 @@ import {
   promotionRuleFromEnv,
 } from "./services/eventbriteInventory.js";
 import { FuncheapAdapter, funcheapConfigFromEnv } from "./services/adapters/funcheap.js";
+import { Analytics, NOOP_ANALYTICS } from "./services/analytics.js";
+import { LastcallDb } from "./services/db.js";
 import { IcsFeedAdapter } from "./services/adapters/icsFeeds.js";
 import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
 import { SF_ICS_FEEDS } from "./services/adapters/sfIcsFeeds.js";
@@ -37,9 +39,33 @@ import type { OfferStore } from "./store/store.js";
 // NOTE: all logging goes to stderr — on the stdio transport, stdout is
 // protocol traffic.
 
-function makeStore(): OfferStore {
+function makeStore(): InMemoryOfferStore {
   const seed = process.env.LASTCALL_SEED !== "off";
   return new InMemoryOfferStore(new Date(), { seed });
+}
+
+/**
+ * Postgres (DATABASE_URL) enables the durable half of the hybrid store:
+ * claims/merchants survive restarts, and the append-only analytics tables
+ * (event_snapshots, search_log) start accumulating — history can't be
+ * backfilled, so the recorder runs from day one even with zero analytics
+ * built on top. Without DATABASE_URL everything no-ops.
+ */
+async function initPersistence(store: InMemoryOfferStore): Promise<Analytics> {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.error("Persistence disabled (DATABASE_URL not set) — claims are in-memory only");
+    return NOOP_ANALYTICS;
+  }
+  const db = new LastcallDb(url);
+  await db.ensureSchema();
+
+  const open = await db.loadOpenClaims(new Date());
+  for (const { claim } of open) store.restoreClaim(claim);
+  console.error(
+    `Postgres persistence on: schema ensured, ${open.length} open claim(s) rehydrated`,
+  );
+  return new Analytics(db);
 }
 
 /**
@@ -47,7 +73,7 @@ function makeStore(): OfferStore {
  * into the store now, and keep re-syncing on an interval (default 30 min,
  * configurable via EVENTBRITE_REFRESH_MINUTES; 0 disables the interval).
  */
-async function startEventbriteSync(store: OfferStore): Promise<void> {
+async function startEventbriteSync(store: OfferStore, analytics: Analytics): Promise<void> {
   const token = process.env.EVENTBRITE_API_TOKEN;
   if (!token) {
     console.error("Eventbrite sync disabled (EVENTBRITE_API_TOKEN not set) — serving seed inventory only");
@@ -61,8 +87,14 @@ async function startEventbriteSync(store: OfferStore): Promise<void> {
     .filter(Boolean);
 
   const sync = async (): Promise<void> => {
-    const result = await buildEventbriteInventory(client, rule, new Date(), orgIds);
+    const syncAt = new Date();
+    const result = await buildEventbriteInventory(client, rule, syncAt, orgIds);
     store.upsertInventory(result.merchants, result.offers);
+    analytics.persistMerchants(result.merchants);
+    analytics.recordEventSnapshots(
+      store.allOffers().filter((o) => o.source === "eventbrite"),
+      syncAt,
+    );
     console.error(
       `Eventbrite sync: ${result.offers.length} offer(s) from ${result.merchants.length} venue(s); skipped ${result.skipped.length} event(s)` +
         (result.skipped.length > 0
@@ -91,7 +123,7 @@ async function startEventbriteSync(store: OfferStore): Promise<void> {
  * re-sync on an interval (default 60 min, LASTCALL_INGEST_REFRESH_MINUTES;
  * 0 disables). Currently wired: Ticketmaster (TICKETMASTER_API_KEY).
  */
-async function startListingIngest(store: OfferStore): Promise<void> {
+async function startListingIngest(store: OfferStore, analytics: Analytics): Promise<void> {
   const adapters: SourceAdapter[] = [];
   const tmConfig = ticketmasterConfigFromEnv();
   if (tmConfig) adapters.push(new TicketmasterAdapter(tmConfig));
@@ -137,7 +169,15 @@ async function startListingIngest(store: OfferStore): Promise<void> {
   }
 
   const sync = async (): Promise<void> => {
-    const summary = await runListingIngest(store, adapters);
+    const syncAt = new Date();
+    const summary = await runListingIngest(store, adapters, syncAt);
+    const listings = store.allOffers().filter((o) => o.kind === "listing");
+    analytics.recordEventSnapshots(listings, syncAt);
+    analytics.persistMerchants(
+      [...new Set(listings.map((o) => o.merchantId))]
+        .map((id) => store.getMerchant(id))
+        .filter((m): m is NonNullable<typeof m> => m !== undefined),
+    );
     const perSource = summary.bySource
       .map((s) => `${s.source}: ${s.error ? `ERROR ${s.error}` : `${s.ingested} in, ${s.skipped} skipped`}`)
       .join(" | ");
@@ -161,9 +201,10 @@ async function startListingIngest(store: OfferStore): Promise<void> {
 
 async function runStdio(): Promise<void> {
   const store = makeStore();
-  const { server } = createServer({ store });
-  await startEventbriteSync(store);
-  await startListingIngest(store);
+  const analytics = await initPersistence(store);
+  const { server } = createServer({ store, analytics });
+  await startEventbriteSync(store, analytics);
+  await startListingIngest(store, analytics);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("LastCall MCP server running via stdio");
@@ -176,9 +217,10 @@ async function runHttp(): Promise<void> {
   // One store shared across requests; a new transport per request keeps the
   // HTTP layer stateless (no sessions), which is the simplest thing to scale.
   const store = makeStore();
-  const { server } = createServer({ store });
-  await startEventbriteSync(store);
-  await startListingIngest(store);
+  const analytics = await initPersistence(store);
+  const { server } = createServer({ store, analytics });
+  await startEventbriteSync(store, analytics);
+  await startListingIngest(store, analytics);
 
   app.post("/mcp", async (req, res) => {
     const transport = new StreamableHTTPServerTransport({
