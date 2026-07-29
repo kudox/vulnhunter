@@ -6,7 +6,7 @@ Local merchants have inventory that expires worthless every day: tonight's empty
 
 The business model: **merchants pay only on redemption** (a 12% platform fee at confirmation), never for impressions. Sponsored placement exists but is bounded and always disclosed in results (`"sponsored": true`).
 
-This is a working scaffold: the full offer lifecycle runs end-to-end against an in-memory store seeded with fictional San Francisco merchants. Seed offer times are generated relative to server start, so a fresh server always has inventory "tonight" and "this weekend." With an Eventbrite API token, the server also syncs **real live events** from connected Eventbrite organizations into the same offer pool (see below).
+This is a working scaffold: the full offer lifecycle runs end-to-end against an in-memory store seeded with fictional merchants in both markets — **San Francisco and Sacramento**. Seed offer times are generated relative to server start, so a fresh server always has inventory "tonight" and "this weekend." With an Eventbrite API token, the server also syncs **real live events** from connected Eventbrite organizations into the same offer pool (see below).
 
 **Project tracking**: [TASKS.md](./TASKS.md) (backlog/WIP/done) · [WORKLOG.md](./WORKLOG.md) (per-session decisions and gotchas) · [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md) (free/non-merchant event ingestion plan) · [docs/PAYMENTS-STRATEGY.md](./docs/PAYMENTS-STRATEGY.md) (three-lane payments/monetization decision) · [docs/MERCHANT-PILOT-PLAYBOOK.md](./docs/MERCHANT-PILOT-PLAYBOOK.md) (supply-side pilot: trust ladder, pitch script, agreement template).
 
@@ -104,7 +104,7 @@ Cross-source duplicates are merged by the dedup engine (`src/services/dedup.ts`)
 TICKETMASTER_API_KEY=your_key npm start   # free key at developer.ticketmaster.com
 ```
 
-The Discovery API has genuinely public search (free tier: 5,000 calls/day). The adapter pulls upcoming events for `TICKETMASTER_CITY`/`TICKETMASTER_STATE_CODE` (default San Francisco/CA) within `LASTCALL_LISTING_MAX_DAYS_OUT` (14 days), maps segments to categories (Music → live_music, Comedy genre → comedy, Sports → sports, …), and ingests them as listings. Events with no concrete start time or a non-onsale status are skipped with logged reasons; missing price ranges become `priceUnknown` (excluded from any `max_price` search). Re-ingest runs every 60 min (`LASTCALL_INGEST_REFRESH_MINUTES`, `0` to disable). Verify without a key: `npm run test:listings`.
+The Discovery API has genuinely public search (free tier: 5,000 calls/day). The adapter pulls upcoming events for each configured market — default **San Francisco + Sacramento**, override with `TICKETMASTER_MARKETS="San Francisco,CA;Sacramento,CA"` (or single-market `TICKETMASTER_CITY`/`TICKETMASTER_STATE_CODE`) — within `LASTCALL_LISTING_MAX_DAYS_OUT` (14 days), maps segments to categories (Music → live_music, Comedy genre → comedy, Sports → sports, …), and ingests them as listings. Events with no concrete start time or a non-onsale status are skipped with logged reasons; missing price ranges become `priceUnknown` (excluded from any `max_price` search). Re-ingest runs every 60 min (`LASTCALL_INGEST_REFRESH_MINUTES`, `0` to disable). Verify without a key: `npm run test:listings`.
 
 New adapters implement `SourceAdapter` (`src/services/adapters/types.ts`) and get dedup, provenance, and refresh for free via the shared ingest pipeline (`src/services/ingest.ts`).
 

@@ -102,11 +102,35 @@ const tmEventsPage2 = [
   },
 ];
 
+// Second market: one Sacramento event, exercising the Sac zip mapping.
+const tmSacEvents = [
+  {
+    id: "tm7",
+    name: "Rivergrass Revival",
+    url: "https://www.ticketmaster.com/event/tm7",
+    dates: { start: { dateTime: hours(28) }, status: { code: "onsale" } },
+    priceRanges: [{ type: "standard", currency: "USD", min: 22 }],
+    classifications: [{ segment: { name: "Music" } }],
+    _embedded: {
+      venues: [{ id: "tv7", name: "The Brass Works", postalCode: "95811", city: { name: "Sacramento" } }],
+    },
+  },
+];
+
+const citiesQueried = new Set<string>();
 const tmFakeFetch: FetchLike = async (rawUrl) => {
   const url = new URL(rawUrl);
   assert(url.pathname === "/discovery/v2/events.json", `unexpected TM path ${url.pathname}`);
   assert(url.searchParams.get("apikey") === "tm-fake-key", "apikey must be sent");
-  assert(url.searchParams.get("city") === "San Francisco", "city param must be sent");
+  const city = url.searchParams.get("city");
+  assert(city === "San Francisco" || city === "Sacramento", `unexpected city ${city}`);
+  citiesQueried.add(city!);
+  if (city === "Sacramento") {
+    return new Response(
+      JSON.stringify({ _embedded: { events: tmSacEvents }, page: { totalPages: 1, number: 0 } }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }
   const page = url.searchParams.get("page");
   const body =
     page === "0"
@@ -120,8 +144,10 @@ const tmFakeFetch: FetchLike = async (rawUrl) => {
 
 const TM_CONFIG: TicketmasterConfig = {
   apiKey: "tm-fake-key",
-  city: "San Francisco",
-  stateCode: "CA",
+  markets: [
+    { city: "San Francisco", stateCode: "CA" },
+    { city: "Sacramento", stateCode: "CA" },
+  ],
   maxDaysOut: 14,
 };
 
@@ -174,11 +200,15 @@ async function main(): Promise<void> {
     "unrelated titles must not match",
   );
 
-  // --- Adapter: mapping + pagination ---
+  // --- Adapter: mapping + pagination + multi-market ---
   const adapter = new TicketmasterAdapter(TM_CONFIG, tmFakeFetch);
   const result = await adapter.fetch(NOW);
-  assert(result.offers.length === 4, `expected 4 mapped listings, got ${result.offers.length}`);
+  assert(citiesQueried.has("San Francisco") && citiesQueried.has("Sacramento"), "both markets must be queried");
+  assert(result.offers.length === 5, `expected 5 mapped listings, got ${result.offers.length}`);
   assert(result.skipped.length === 2, `expected 2 skips, got ${result.skipped.length}`);
+
+  const sac = result.offers.find((o) => o.id === "off_tm_tm7");
+  assert(sac?.neighborhood === "Midtown", `zip 95811 -> Midtown, got ${sac?.neighborhood}`);
   const skipReasons = Object.fromEntries(result.skipped.map((s) => [s.id, s.reason]));
   assert(skipReasons["tm3"] === "no concrete start time", `tm3: ${skipReasons["tm3"]}`);
   assert(skipReasons["tm4"] === "status cancelled", `tm4: ${skipReasons["tm4"]}`);
@@ -203,7 +233,7 @@ async function main(): Promise<void> {
   store.upsertInventory([eb.merchant], [eb.offer]);
 
   const summary = await runListingIngest(store, [adapter], NOW);
-  assert(summary.totalUpserted === 3, `tm5 should merge into the EB offer: expected 3 upserted, got ${summary.totalUpserted}`);
+  assert(summary.totalUpserted === 4, `tm5 should merge into the EB offer: expected 4 upserted, got ${summary.totalUpserted}`);
   assert(summary.merged === 1, `expected 1 merge, got ${summary.merged}`);
   assert(!store.getOffer("off_tm_tm5"), "duplicate TM listing must not be stored");
   assert(store.getOffer("off_eb_5001")?.kind === "offer", "the claimable offer must survive dedup");
@@ -211,7 +241,10 @@ async function main(): Promise<void> {
 
   // --- Store behavior: search mixing, filters, claim guard ---
   const all = store.searchOffers({ limit: 20, offset: 0 }, NOW);
-  assert(all.total === 4, `expected 4 total results (1 offer + 3 listings), got ${all.total}`);
+  assert(all.total === 5, `expected 5 total results (1 offer + 4 listings), got ${all.total}`);
+
+  const midtown = store.searchOffers({ limit: 20, offset: 0, neighborhood: "midtown" }, NOW);
+  assert(midtown.total === 1 && midtown.offers[0].id === "off_tm_tm7", "case-insensitive Sacramento neighborhood filter works");
 
   const claimables = store.searchOffers({ limit: 20, offset: 0, claimableOnly: true }, NOW);
   assert(claimables.total === 1 && claimables.offers[0].id === "off_eb_5001", "claimableOnly should return just the offer");

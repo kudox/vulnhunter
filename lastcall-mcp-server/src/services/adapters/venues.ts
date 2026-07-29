@@ -1,10 +1,10 @@
 import type { Category } from "../../types.js";
 
 /**
- * Curated seed list for the JSON-LD venue crawler: SF venue event/calendar
- * pages. Adding a venue is adding a URL — the crawler discovers whatever
- * schema.org Event data the page embeds. Yield varies by venue platform;
- * zero-yield venues are logged per sync so the list can be pruned/annotated.
+ * Curated seed list for the JSON-LD venue crawler (SF + Sacramento markets).
+ * Adding a venue is adding a URL — the crawler discovers whatever schema.org
+ * Event data the page embeds. Yield varies by venue platform; zero-yield
+ * venues are logged per sync so the list can be pruned/annotated.
  *
  * `neighborhood`/`category` are fallbacks used when the page's structured
  * data doesn't carry an address/type we can map.
@@ -16,7 +16,12 @@ export interface VenuePage {
   category?: Category;
 }
 
-export const SF_VENUE_PAGES: VenuePage[] = [
+export const CURATED_VENUE_PAGES: VenuePage[] = [
+  // --- Sacramento (probed 2026-07-29: both Live Nation pages yield JSON-LD;
+  // Crest & Goldfield bot-wall; Harlow's/Comedy Spot carry no homepage events) ---
+  { url: "https://www.aceofspadessac.com/", name: "Ace of Spades", neighborhood: "Downtown Sacramento", category: "live_music" },
+  { url: "https://www.punchlinesac.com/", name: "Punch Line Sacramento", neighborhood: "Arden-Arcade", category: "comedy" },
+  // --- San Francisco ---
   { url: "https://www.thefillmore.com/", name: "The Fillmore", category: "live_music" },
   { url: "https://www.theindependentsf.com/", name: "The Independent", category: "live_music" },
   { url: "https://gamh.com/", name: "Great American Music Hall", category: "live_music" },

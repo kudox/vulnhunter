@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Category, Merchant, Offer } from "../../types.js";
 import type { FetchLike } from "../eventbrite.js";
-import { sfNeighborhoodForZip } from "../neighborhoods.js";
+import { neighborhoodForZip } from "../neighborhoods.js";
 import type { AdapterResult, SourceAdapter } from "./types.js";
-import type { VenuePage } from "./sfVenues.js";
+import type { VenuePage } from "./venues.js";
 
 /**
  * Schema.org JSON-LD venue crawler — OSINT source #2.
@@ -175,7 +175,7 @@ export function mapLdEventToListing(
   const address = typeof location?.address === "object" ? location.address : undefined;
   const zip = address?.postalCode?.trim().slice(0, 5);
   const neighborhood =
-    (zip && sfNeighborhoodForZip(zip)) ||
+    (zip && neighborhoodForZip(zip)) ||
     venue.neighborhood ||
     address?.addressLocality?.trim() ||
     "San Francisco";

@@ -119,6 +119,43 @@ const MERCHANTS: Merchant[] = [
     description:
       "Latin dance studio; beginner salsa socials need a critical mass of newcomers to work.",
   },
+  // --- Sacramento (fictional, for dogfooding the claim flow locally) ---
+  {
+    id: "mer_brass_hummingbird",
+    name: "The Brass Hummingbird",
+    category: "live_music",
+    neighborhood: "Midtown",
+    address: "2015 J St",
+    description:
+      "Midtown listening room with nightly local acts; weeknight second sets play to half a room.",
+  },
+  {
+    id: "mer_delta_forno",
+    name: "Delta Forno",
+    category: "food_drink",
+    neighborhood: "Downtown Sacramento",
+    address: "1116 10th St",
+    description:
+      "Wood-fired pizzeria two blocks from the Capitol; dead between the lunch rush and 6pm.",
+  },
+  {
+    id: "mer_river_bend_yoga",
+    name: "River Bend Yoga",
+    category: "wellness",
+    neighborhood: "East Sacramento",
+    address: "5644 Folsom Blvd",
+    description:
+      "Neighborhood yoga studio; midday classes run a third full while evenings overflow.",
+  },
+  {
+    id: "mer_grid_iron_comedy",
+    name: "Grid & Iron Comedy",
+    category: "comedy",
+    neighborhood: "Land Park",
+    address: "2731 Riverside Blvd",
+    description:
+      "60-seat comedy room over a taproom; Thursday showcases need bodies to make the show work.",
+  },
 ];
 
 interface SeedOfferSpec {
@@ -390,6 +427,68 @@ const OFFER_SPECS: SeedOfferSpec[] = [
     maxPartySize: 8,
     sponsored: true,
     terms: "Preview performance; minor technical pauses possible. Open seating.",
+  },
+  // --- Sacramento ---
+  {
+    id: "off_hummingbird_second_set",
+    merchantId: "mer_brass_hummingbird",
+    title: "Tonight's Second Set: The Levee Cats — 40% off",
+    description:
+      "Same band, 9:30pm set, room to spare. Midtown's best-kept weeknight secret.",
+    startsInHours: 6,
+    durationHours: 1.5,
+    claimCutoffHours: 1,
+    priceCents: 1200,
+    faceValueCents: 2000,
+    totalQuantity: 20,
+    maxPartySize: 6,
+    terms: "Valid for the second set only. One-drink minimum.",
+  },
+  {
+    id: "off_delta_forno_afternoon",
+    merchantId: "mer_delta_forno",
+    title: "2–5pm Pizza + Draft Window — 35% off",
+    description:
+      "The oven's hot all afternoon anyway. Any pizza plus a draft pour at the quiet-hours price.",
+    startsInHours: 4,
+    durationHours: 3,
+    claimCutoffHours: 0.5,
+    priceCents: 1600,
+    faceValueCents: 2500,
+    totalQuantity: 18,
+    maxPartySize: 6,
+    terms: "Valid 2–5pm only. Dine-in only.",
+  },
+  {
+    id: "off_riverbend_midday",
+    merchantId: "mer_river_bend_yoga",
+    title: "Tomorrow's Midday Flow — $9 mat spots",
+    description:
+      "12:15pm vinyasa with a room two-thirds empty. Lunch-break-sized, mats provided.",
+    startsInHours: 22,
+    durationHours: 0.75,
+    claimCutoffHours: 1,
+    priceCents: 900,
+    faceValueCents: 2200,
+    totalQuantity: 12,
+    maxPartySize: 2,
+    newCustomersOnly: true,
+    terms: "First-time guests only. Mats and props provided.",
+  },
+  {
+    id: "off_gridiron_thursday",
+    merchantId: "mer_grid_iron_comedy",
+    title: "Thursday Showcase — fill-the-room $8 seats",
+    description:
+      "Six comics over the taproom. The show's funnier with you in it; the beer's downstairs either way.",
+    startsInHours: 30,
+    durationHours: 1.5,
+    claimCutoffHours: 2,
+    priceCents: 800,
+    faceValueCents: 2000,
+    totalQuantity: 25,
+    maxPartySize: 8,
+    terms: "General admission, 21+. Seating first-come.",
   },
 ];
 

@@ -10,6 +10,23 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Sacramento market added (dogfooding)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- Ticketmaster adapter is multi-market: `markets: TmMarket[]`, env `TICKETMASTER_MARKETS="San Francisco,CA;Sacramento,CA"` (the default), single-market `TICKETMASTER_CITY` kept for compat.
+- Sacramento zips → neighborhoods in the shared map (renamed `neighborhoodForZip`); Sacramento entries in `NEIGHBORHOODS`; `CITY` constant now "San Francisco & Sacramento" (flows into tool descriptions).
+- Curated lists renamed market-neutral (`venues.ts` / `icsFeedList.ts`, exports `CURATED_*`); Sacramento venue crawl targets added after live probing: **Ace of Spades and Punch Line Sac both emit JSON-LD (25 events each — Live Nation platform, as with Fillmore/Cobb's)**; Crest + Goldfield bot-wall (403); Harlow's/Comedy Spot homepages carry no events.
+- 4 fictional Sacramento seed merchants/offers (Midtown listening room, Downtown pizzeria, East Sac yoga, Land Park comedy) so the claim lifecycle dogfoods locally.
+
+**Live validation (2026-07-29)**
+- TM both markets: **210 events ingested** (was 142 SF-only); with the Sac venue crawlers: 34 merged, 196 upserted. **Sacramento view: 68 live listings + 4 seed offers**, 20 Sac events multi-source corroborated. Real inventory: touring Broadway at SAFE Credit Union PAC, films at the Crest, Cal Expo shows, Punch Line comedy.
+- Nice systemic catch: the Crest bot-walls the crawler, but Ticketmaster's API carries its events anyway — API-first sourcing routes around bot walls.
+- Sacramento Meetup iCal slugs all guessed wrong (404s) — finding Sac community feeds (Sacramento365, library) backlogged.
+
+---
+
 ## 2026-07-29 — Merchant pilot playbook (docs/MERCHANT-PILOT-PLAYBOOK.md)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

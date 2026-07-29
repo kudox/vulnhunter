@@ -1,7 +1,7 @@
 export const SERVER_NAME = "lastcall-mcp-server";
 export const SERVER_VERSION = "0.1.0";
 
-export const CITY = "San Francisco";
+export const CITY = "San Francisco & Sacramento";
 
 /** Maximum response size in characters before truncation kicks in. */
 export const CHARACTER_LIMIT = 25000;
@@ -16,6 +16,7 @@ export const DEFAULT_SEARCH_LIMIT = 10;
 export const MAX_SEARCH_LIMIT = 50;
 
 export const NEIGHBORHOODS = [
+  // San Francisco
   "Mission",
   "SoMa",
   "Hayes Valley",
@@ -26,6 +27,15 @@ export const NEIGHBORHOODS = [
   "Richmond",
   "Outer Sunset",
   "Financial District",
+  // Sacramento
+  "Midtown",
+  "Downtown Sacramento",
+  "East Sacramento",
+  "Land Park",
+  "Oak Park",
+  "Tahoe Park",
+  "Natomas",
+  "Arden-Arcade",
 ] as const;
 
 export const CATEGORIES = [

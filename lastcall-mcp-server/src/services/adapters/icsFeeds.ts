@@ -13,9 +13,9 @@ import {
   unescapeIcsText,
   type IcsEvent,
 } from "../ics.js";
-import { sfNeighborhoodForZip } from "../neighborhoods.js";
+import { neighborhoodForZip } from "../neighborhoods.js";
 import type { AdapterResult, SourceAdapter } from "./types.js";
-import type { IcsFeed } from "./sfIcsFeeds.js";
+import type { IcsFeed } from "./icsFeedList.js";
 
 /**
  * ICS/iCal feed adapter — OSINT source #3, the free civic-event layer.
@@ -109,7 +109,7 @@ export function mapIcsEvent(
   const venueName = location.split(",")[0]?.trim() || feed.name;
   const zip = location.match(/\b(941\d{2})\b/)?.[1];
   const neighborhood =
-    (zip && sfNeighborhoodForZip(zip)) || feed.neighborhood || "San Francisco";
+    (zip && neighborhoodForZip(zip)) || feed.neighborhood || "San Francisco";
 
   const url = prop(event, "URL")?.value.trim() || normalizeFeedUrl(feed.url);
   const description = prop(event, "DESCRIPTION")

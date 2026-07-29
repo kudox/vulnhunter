@@ -25,8 +25,8 @@ import { Analytics, NOOP_ANALYTICS } from "./services/analytics.js";
 import { LastcallDb } from "./services/db.js";
 import { IcsFeedAdapter } from "./services/adapters/icsFeeds.js";
 import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
-import { SF_ICS_FEEDS } from "./services/adapters/sfIcsFeeds.js";
-import { SF_VENUE_PAGES } from "./services/adapters/sfVenues.js";
+import { CURATED_ICS_FEEDS } from "./services/adapters/icsFeedList.js";
+import { CURATED_VENUE_PAGES } from "./services/adapters/venues.js";
 import {
   TicketmasterAdapter,
   ticketmasterConfigFromEnv,
@@ -158,7 +158,7 @@ async function startListingIngest(store: OfferStore, analytics: Analytics): Prom
       .filter(Boolean);
     const venues = urls
       ? urls.map((url) => ({ url, name: new URL(url).hostname }))
-      : SF_VENUE_PAGES;
+      : CURATED_VENUE_PAGES;
     const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
     adapters.push(new JsonLdCrawlerAdapter({ venues, maxDaysOut }));
   }
@@ -172,7 +172,7 @@ async function startListingIngest(store: OfferStore, analytics: Analytics): Prom
       .filter(Boolean);
     const feeds = urls
       ? urls.map((url) => ({ url, name: new URL(url.replace(/^webcal:\/\//i, "https://")).hostname }))
-      : SF_ICS_FEEDS;
+      : CURATED_ICS_FEEDS;
     const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
     adapters.push(new IcsFeedAdapter({ feeds, maxDaysOut }));
   }

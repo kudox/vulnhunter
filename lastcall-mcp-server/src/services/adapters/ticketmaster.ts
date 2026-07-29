@@ -1,6 +1,6 @@
 import type { Category, Merchant, Offer } from "../../types.js";
 import type { FetchLike } from "../eventbrite.js";
-import { sfNeighborhoodForZip } from "../neighborhoods.js";
+import { neighborhoodForZip } from "../neighborhoods.js";
 import type { AdapterResult, SourceAdapter } from "./types.js";
 
 /**
@@ -71,20 +71,50 @@ function categoryFor(event: TmEvent): Category {
   }
 }
 
-export interface TicketmasterConfig {
-  apiKey: string;
+export interface TmMarket {
   city: string;
   stateCode: string;
+}
+
+export interface TicketmasterConfig {
+  apiKey: string;
+  /** City markets to sync, each queried separately. */
+  markets: TmMarket[];
   /** Ignore events starting further out than this many days. */
   maxDaysOut: number;
 }
 
+const DEFAULT_MARKETS: TmMarket[] = [
+  { city: "San Francisco", stateCode: "CA" },
+  { city: "Sacramento", stateCode: "CA" },
+];
+
+/** Parse "San Francisco,CA;Sacramento,CA"-style TICKETMASTER_MARKETS. */
+function parseMarkets(raw: string): TmMarket[] {
+  return raw
+    .split(";")
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const [city, stateCode] = pair.split(",").map((s) => s.trim());
+      return { city, stateCode: stateCode || "CA" };
+    })
+    .filter((m) => m.city);
+}
+
 export function ticketmasterConfigFromEnv(env: NodeJS.ProcessEnv = process.env): TicketmasterConfig | undefined {
   if (!env.TICKETMASTER_API_KEY) return undefined;
+  let markets = DEFAULT_MARKETS;
+  if (env.TICKETMASTER_MARKETS) {
+    markets = parseMarkets(env.TICKETMASTER_MARKETS);
+  } else if (env.TICKETMASTER_CITY) {
+    // Single-market override kept for compatibility.
+    markets = [{ city: env.TICKETMASTER_CITY, stateCode: env.TICKETMASTER_STATE_CODE ?? "CA" }];
+  }
+  if (markets.length === 0) return undefined;
   return {
     apiKey: env.TICKETMASTER_API_KEY,
-    city: env.TICKETMASTER_CITY ?? "San Francisco",
-    stateCode: env.TICKETMASTER_STATE_CODE ?? "CA",
+    markets,
     maxDaysOut: Number(env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14,
   };
 }
@@ -120,7 +150,7 @@ export function mapTmEventToListing(
   const venue = event._embedded?.venues?.[0];
   const zip = venue?.postalCode?.trim().slice(0, 5);
   const neighborhood =
-    (zip && sfNeighborhoodForZip(zip)) || venue?.city?.name?.trim() || "San Francisco";
+    (zip && neighborhoodForZip(zip)) || venue?.city?.name?.trim() || "San Francisco";
 
   const standardRange =
     event.priceRanges?.find((r) => r.type === "standard") ?? event.priceRanges?.[0];
@@ -176,11 +206,11 @@ export class TicketmasterAdapter implements SourceAdapter {
     this.fetchFn = fetchFn;
   }
 
-  private async getPage(page: number, now: Date): Promise<TmEventsPage> {
+  private async getPage(market: TmMarket, page: number, now: Date): Promise<TmEventsPage> {
     const url = new URL(`${API_BASE}/events.json`);
     url.searchParams.set("apikey", this.config.apiKey);
-    url.searchParams.set("city", this.config.city);
-    url.searchParams.set("stateCode", this.config.stateCode);
+    url.searchParams.set("city", market.city);
+    url.searchParams.set("stateCode", market.stateCode);
     url.searchParams.set("startDateTime", tmIso(now));
     url.searchParams.set(
       "endDateTime",
@@ -210,24 +240,26 @@ export class TicketmasterAdapter implements SourceAdapter {
 
   async fetch(now: Date): Promise<AdapterResult> {
     const merchants = new Map<string, Merchant>();
-    const offers: Offer[] = [];
+    const offersById = new Map<string, Offer>();
     const skipped: AdapterResult["skipped"] = [];
 
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const body = await this.getPage(page, now);
-      for (const event of body._embedded?.events ?? []) {
-        const result = mapTmEventToListing(event, now, this.config.maxDaysOut);
-        if ("skip" in result) {
-          skipped.push({ id: event.id, reason: result.skip });
-        } else {
-          merchants.set(result.merchant.id, result.merchant);
-          offers.push(result.offer);
+    for (const market of this.config.markets) {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const body = await this.getPage(market, page, now);
+        for (const event of body._embedded?.events ?? []) {
+          const result = mapTmEventToListing(event, now, this.config.maxDaysOut);
+          if ("skip" in result) {
+            skipped.push({ id: event.id, reason: result.skip });
+          } else {
+            merchants.set(result.merchant.id, result.merchant);
+            offersById.set(result.offer.id, result.offer);
+          }
         }
+        const totalPages = body.page?.totalPages ?? 1;
+        if (page + 1 >= totalPages) break;
       }
-      const totalPages = body.page?.totalPages ?? 1;
-      if (page + 1 >= totalPages) break;
     }
 
-    return { merchants: [...merchants.values()], offers, skipped };
+    return { merchants: [...merchants.values()], offers: [...offersById.values()], skipped };
   }
 }

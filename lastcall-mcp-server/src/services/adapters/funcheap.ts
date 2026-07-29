@@ -4,7 +4,7 @@ import type { Category, Merchant, Offer } from "../../types.js";
 import { parseEventDate } from "../dates.js";
 import type { FetchLike } from "../eventbrite.js";
 import { decodeHtmlEntities } from "../text.js";
-import { sfNeighborhoodForZip } from "../neighborhoods.js";
+import { neighborhoodForZip } from "../neighborhoods.js";
 import { collectEvents, extractJsonLdBlocks, isPathAllowedByRobots } from "./jsonldCrawler.js";
 import type { AdapterResult, SourceAdapter } from "./types.js";
 
@@ -133,7 +133,7 @@ export function mapFuncheapEvent(
 
   const zip = address.match(/\b(941\d{2})\b/)?.[1];
   const neighborhood =
-    (zip && sfNeighborhoodForZip(zip)) || neighborhoodFromTitle(title) || "San Francisco";
+    (zip && neighborhoodForZip(zip)) || neighborhoodFromTitle(title) || "San Francisco";
   const category = inferCategory(`${title} ${event.description ?? ""}`);
 
   const offers = first(event.offers);

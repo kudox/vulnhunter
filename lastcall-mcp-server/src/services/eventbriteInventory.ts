@@ -1,6 +1,6 @@
 import type { Category, Merchant, Offer } from "../types.js";
 import type { EbEvent, EbOrganization, EbTicketClass, EventbriteClient } from "./eventbrite.js";
-import { sfNeighborhoodForZip } from "./neighborhoods.js";
+import { neighborhoodForZip } from "./neighborhoods.js";
 
 /**
  * Promotion rules: how a merchant's raw Eventbrite inventory becomes LastCall
@@ -72,7 +72,7 @@ export interface MappingResult extends EventbriteInventory {
 
 function neighborhoodFor(event: EbEvent): string {
   const zip = event.venue?.address?.postal_code?.trim().slice(0, 5);
-  const mapped = zip ? sfNeighborhoodForZip(zip) : undefined;
+  const mapped = zip ? neighborhoodForZip(zip) : undefined;
   return mapped ?? (event.venue?.address?.city?.trim() || "San Francisco");
 }
 

@@ -1,10 +1,11 @@
 import type { Category } from "../../types.js";
 
 /**
- * Curated ICS/iCal feed list for SF community and civic events — the
- * free-event layer. Like the venue list, this is config-not-code: adding a
- * feed is adding a URL, and live syncs log per-feed yield so dead or moved
- * feeds can be pruned.
+ * Curated ICS/iCal feed list for community and civic events — the free-event
+ * layer. Like the venue list, this is config-not-code: adding a feed is
+ * adding a URL, and live syncs log per-feed yield so dead or moved feeds can
+ * be pruned. (Sacramento feeds wanted: obvious Meetup slugs all 404'd on
+ * 2026-07-29 probing — finding live Sac community calendars is backlogged.)
  *
  * `assumeFree: true` marks community calendars whose events are free unless
  * stated otherwise (ICS has no price field); other feeds get priceUnknown.
@@ -22,7 +23,7 @@ export interface IcsFeed {
 // All feeds below verified live 2026-07-28 (HTTP 200, valid iCalendar).
 // Meetup group iCal endpoints (meetup.com/<group>/events/ical/) remained
 // public after the 2025 API lockdown. Yields fluctuate with group activity.
-export const SF_ICS_FEEDS: IcsFeed[] = [
+export const CURATED_ICS_FEEDS: IcsFeed[] = [
   {
     url: "https://www.meetup.com/sfcivictech/events/ical/",
     name: "SF Civic Tech",

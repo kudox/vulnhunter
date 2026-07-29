@@ -15,7 +15,7 @@ the session date that shipped them.
 ### OSINT event ingestion (see [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md))
 - [ ] Re-measure Phase-1 done-bar from a morning run: full-day event count for one SF day vs manual Funcheap/Chronicle spot-check (7pm run showed 19 events left in-window; needs a fair full-day measurement) (added: 2026-07-29)
 - [ ] Funcheap venue merchant quality: many listings land on "Venue TBA" when location.name is empty — consider parsing venue from description/address (added: 2026-07-29)
-- [ ] Grow the ICS feed list: find working civic feeds (SFPL/Rec & Parks event calendars don't expose obvious public ICS; investigate their platforms), more Meetup groups, Luma calendar ICS URLs (added: 2026-07-28)
+- [ ] Grow the ICS feed list: find working civic feeds (SFPL/Rec & Parks event calendars don't expose obvious public ICS; investigate their platforms), more Meetup groups, Luma calendar ICS URLs; Sacramento community feeds (obvious Meetup slugs 404'd — try Sacramento365, city library, SacJS via their sites) (added: 2026-07-28, updated: 2026-07-29)
 - [ ] MONTHLY RRULE expansion (BYDAY ordinals like 2TU) — currently skipped with reasons (added: 2026-07-28)
 - [ ] JSON-LD crawler follow-links mode: fetch per-event detail pages from calendar pages — the yield fix for venues whose calendars carry no inline JSON-LD (added: 2026-07-28)
 - [ ] Prune/annotate the SF venue list from live-crawl findings; consider platform-specific fetchers for bot-walled venues (SFJAZZ, Exploratorium, de Young…) or cover them via aggregators instead (added: 2026-07-28)
@@ -52,6 +52,13 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-29 (Sacramento market — dogfooding)
+- [x] Multi-market Ticketmaster adapter (`TICKETMASTER_MARKETS`, default SF + Sacramento)
+- [x] Sacramento zip → neighborhood mapping (Midtown, Downtown, East Sac, Land Park, Oak Park, Tahoe Park, Natomas, Arden-Arcade) + NEIGHBORHOODS additions
+- [x] Sacramento venue crawl targets (Ace of Spades, Punch Line Sac — both live-verified JSON-LD) in the renamed market-neutral `venues.ts`/`icsFeedList.ts`
+- [x] 4 Sacramento seed merchants/offers so the claim flow dogfoods locally
+- [x] Live-validated: 210 TM events across both markets, 68 Sacramento listings, 20 Sac events multi-source corroborated
 
 ### Session 2026-07-29 (multi-instance claim path)
 - [x] `offer_inventory` shared ledger + atomic reserve (conditional UPDATE + claim INSERT in one transaction); Postgres is the claim authority when configured
