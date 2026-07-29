@@ -10,6 +10,29 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Multi-instance claim path
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- `offer_inventory` shared ledger (`baseline` feed-owned, `claimed` database-owned) and `db.reserveAndInsertClaim`: conditional `UPDATE ... WHERE claimed + N <= baseline` + claim `INSERT` in one transaction — the row lock serializes claimers across every instance sharing the database.
+- `ClaimCoordinator` (`src/services/claims.ts`), now the tools' mutation path: db-less it delegates to the store; with a database it claims local-optimistic then reserves in Postgres, rolling the local hold back on refusal (honest sold-out) or on database error (**fail-closed**: never trade oversell-safety for availability). Confirm/release adopt unknown claims from Postgres by id/code, so any instance can finish any claim. Expired holds sweep in Postgres pre-reserve and on a 1-minute interval.
+- Baselines: every Eventbrite sync pushes pre-deduction availability; seed offers seeded at boot.
+
+**Live validation (real PostgreSQL 16, two simulated instances with separate stores sharing one DB)**
+- **Oversell race**: 10-spot offer, 8 concurrent party-of-2 claims split across two instances → exactly 5 wins, losers see `sold_out`, ledger reads exactly 10/10. The core guarantee, observed.
+- Cross-instance confirm-by-code (adoption), release returning seats that a third instance then claimed, sweep freeing a lapsed hold, rehydration excluding swept holds — all green; all seven DB-free suites unaffected.
+
+**Design decisions**
+- Local-optimistic ordering (store first, then Postgres) keeps all the good error messages and the store race-free path, at the cost of a momentary local hold that may roll back — invisible to callers.
+- Fail-closed on DB unavailability for claims specifically; reads/search stay up (they don't need the ledger).
+- Display freshness is best-effort between syncs and stated as such in the README; the reserve step is the correctness boundary. Reconciliation pass backlogged.
+
+**Gotchas**
+- A cross-instance confirm *adopts* the claim into the confirming instance's store — tests (and future code) must not assume "claims in store B were created by B". Bit the integration test's release-target selection first.
+
+---
+
 ## 2026-07-29 — Postgres + snapshots milestone
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

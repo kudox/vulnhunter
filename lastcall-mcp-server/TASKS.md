@@ -25,7 +25,7 @@ the session date that shipped them.
 - [ ] Phase-1 done-bar check: ≥50 deduplicated free+paid events for a given SF evening vs manual Funcheap/Chronicle spot-check (added: 2026-07-25)
 
 ### Platform
-- [ ] Multi-instance claim path: atomic `UPDATE ... WHERE remaining >= N RETURNING` in Postgres so several server instances can safely share inventory (current design is single-node write-behind) (added: 2026-07-29)
+- [ ] Display-freshness reconciliation: periodically pull `offer_inventory` claimed counts so each instance's shown remaining matches the shared ledger between syncs (correctness already guaranteed at reserve time) (added: 2026-07-29)
 - [ ] First analytics queries over event_snapshots: sell-through velocity by category/venue, sell-out prediction, discount-timing correlation (recorder is live; analysis unbuilt) (added: 2026-07-29)
 - [ ] Snapshot event disappearance (event vanishing from a source is itself a signal — likely sold out or cancelled upstream) (added: 2026-07-29)
 - [ ] Payments in confirm step — Stripe agentic checkout / Machine Payments Protocol (added: 2026-07-25)
@@ -43,6 +43,12 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-29 (multi-instance claim path)
+- [x] `offer_inventory` shared ledger + atomic reserve (conditional UPDATE + claim INSERT in one transaction); Postgres is the claim authority when configured
+- [x] `ClaimCoordinator`: local-optimistic claim with rollback on shared-pool refusal; fail-closed when the database is unreachable; cross-instance confirm/release via claim adoption; shared expired-hold sweeps (pre-reserve + 1-min interval)
+- [x] Feed-owned baselines pushed from every sync; seed baselines at boot
+- [x] Integration suite rewritten as a two-instance simulation: oversell race (8 concurrent claims, exactly 5 wins, ledger 10/10), cross-instance confirm-by-code, release + third-instance re-claim, sweep, rehydration — verified on real PostgreSQL 16
 
 ### Session 2026-07-29 (Postgres + snapshots milestone)
 - [x] Hybrid persistence: Postgres (`DATABASE_URL`) holds claims + merchants; listings stay in-memory; everything no-ops without a database

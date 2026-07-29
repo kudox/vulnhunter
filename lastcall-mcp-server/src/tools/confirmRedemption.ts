@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { PLATFORM_FEE_PCT } from "../constants.js";
 import { claimToJson, dollars, toolError, toolResult } from "../format.js";
-import type { Analytics } from "../services/analytics.js";
+import type { ClaimCoordinator } from "../services/claims.js";
 import type { OfferStore } from "../store/store.js";
 
 const inputShape = {
@@ -18,7 +18,7 @@ type Input = z.infer<typeof InputSchema>;
 export function registerConfirmRedemption(
   server: McpServer,
   store: OfferStore,
-  analytics: Analytics,
+  coordinator: ClaimCoordinator,
 ): void {
   server.registerTool(
     "lastcall_confirm_redemption",
@@ -60,14 +60,13 @@ Error handling:
     },
     async (params: Input) => {
       try {
-        const result = store.confirmClaim(params.claim);
+        const result = await coordinator.confirm(params.claim);
         if (!result.ok) {
           return toolError(result.message);
         }
 
         const claim = result.value;
         const offer = store.getOffer(claim.offerId);
-        analytics.persistClaim(claim, offer);
         const structured = claimToJson(claim, offer);
 
         const text = [

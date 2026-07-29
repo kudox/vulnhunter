@@ -3,6 +3,7 @@ import { z } from "zod";
 import { HOLD_DURATION_MINUTES } from "../constants.js";
 import { claimToJson, dollars, toolError, toolResult } from "../format.js";
 import type { Analytics } from "../services/analytics.js";
+import type { ClaimCoordinator } from "../services/claims.js";
 import type { OfferStore } from "../store/store.js";
 
 const inputShape = {
@@ -24,6 +25,7 @@ type Input = z.infer<typeof InputSchema>;
 export function registerClaimOffer(
   server: McpServer,
   store: OfferStore,
+  coordinator: ClaimCoordinator,
   analytics: Analytics,
 ): void {
   server.registerTool(
@@ -68,14 +70,13 @@ Error handling:
     },
     async (params: Input) => {
       try {
-        const result = store.claimOffer(params.offer_id, params.party_size);
+        const result = await coordinator.claim(params.offer_id, params.party_size);
         if (!result.ok) {
           return toolError(result.message);
         }
 
         const claim = result.value;
         const offer = store.getOffer(claim.offerId);
-        analytics.persistClaim(claim, offer);
         if (offer) analytics.recordEventSnapshots([offer]); // remaining changed
         const structured = claimToJson(claim, offer);
 

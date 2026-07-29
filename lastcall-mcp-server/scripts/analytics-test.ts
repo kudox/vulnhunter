@@ -88,11 +88,17 @@ async function main(): Promise<void> {
   noop.persistMerchants([]);
   noop.logSearch({ searchedAt: NOW, claimableOnly: false, resultTotal: 0, topResultIds: [] });
 
+  noop.syncInventoryBaselines([a, b]);
+
+  // Coordinator without a database delegates straight to the store.
+  const { ClaimCoordinator } = await import("../src/services/claims.js");
   const store = new InMemoryOfferStore(NOW);
-  const claim = store.claimOffer("off_fogline_tonight", 2, NOW);
-  assert(claim.ok, "seed claim works");
-  noop.persistClaim(claim.value, store.getOffer("off_fogline_tonight"));
-  console.log("no-op mode: all methods safe without a database");
+  const coordinator = new ClaimCoordinator(store);
+  const claim = await coordinator.claim("off_fogline_tonight", 2);
+  assert(claim.ok, "db-less coordinator claim works");
+  const confirmed = await coordinator.confirm(claim.value.redemptionCode);
+  assert(confirmed.ok, "db-less coordinator confirm works");
+  console.log("no-op mode: analytics and coordinator safe without a database");
 
   console.log("\nANALYTICS TEST OK — delta-only recording and no-op safety pass");
 }

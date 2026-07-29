@@ -76,7 +76,18 @@ The store is a **hybrid**: listings stay in-memory (they're a disposable cache, 
 - **`event_snapshots`** — append-only, **delta-only** history of every listing: a row is written when an event first appears or when its remaining seats, price, start time, or source corroboration change. This is the sell-through-curve dataset (velocity, sell-out prediction, discount-timing analytics) — the recorder runs from day one precisely because history only accumulates forward.
 - **`search_log`** — structured demand exhaust from every search: filters (party size, budget, time window, category, neighborhood) and result counts, **never user identity**. Zero-result searches are logged too — unmet demand is the merchant-pitch dataset.
 
-Without `DATABASE_URL` everything no-ops: dev and all fixture suites run database-free. Schema is created idempotently on boot (`src/services/db.ts`). Design note: this is single-node write-behind — the in-memory store stays the synchronous decision-maker and Postgres follows; multi-instance deployments need the atomic-decrement claim path (backlogged) before scaling out. Integration test (needs a reachable database): `DATABASE_URL=... npm run test:pg`; unit tests for the delta recorder: `npm run test:analytics`.
+Without `DATABASE_URL` everything no-ops: dev and all fixture suites run database-free. Schema is created idempotently on boot (`src/services/db.ts`). Integration test (needs a reachable database): `DATABASE_URL=... npm run test:pg`; unit tests for the delta recorder: `npm run test:analytics`.
+
+### Multi-instance claims
+
+With a database configured, **Postgres is the claim authority** — any number of server instances can safely share inventory:
+
+- **No oversell**: claiming reserves seats via a conditional `UPDATE offer_inventory SET claimed = claimed + N WHERE claimed + N <= baseline` plus the claim `INSERT`, in one transaction — the row lock serializes concurrent claimers across all instances. The local store validates and holds optimistically; if Postgres refuses (another instance won the seats), the local hold rolls back and the agent sees an honest sold-out. If Postgres is unreachable, the claim **fails** — oversell-safety is never traded for availability.
+- **Any instance can finish any claim**: confirm/release look up unknown claims in Postgres by id or redemption code and adopt them locally, so a hold placed via instance A confirms fine on instance B.
+- **Shared expiry**: lapsed holds are swept in Postgres (each exactly once, row-locked) before every reserve and on a 1-minute interval, returning seats to the shared pool.
+- **Baselines are feed-owned**: syncs push each offer's pre-deduction availability into `offer_inventory.baseline`; consumption (`claimed`) belongs to the database.
+
+Known limit (documented, not hidden): each instance's *displayed* remaining count reflects its own claims plus what it learns at sync/adoption time, so search results can slightly overstate availability between syncs — the reserve step is what guarantees correctness. The `ClaimCoordinator` (`src/services/claims.ts`) is the seam where a display-reconciliation pass would land.
 
 ## Two-tier inventory: offers vs listings
 

@@ -28,6 +28,8 @@ export interface OfferStore {
   releaseClaim(claimIdOrCode: string, now?: Date): StoreResult<Claim>;
   /** Every stored offer/listing, unfiltered — used by ingest dedup as anchors. */
   allOffers(): Offer[];
+  /** Adopt a claim persisted elsewhere (boot hydration / another instance). */
+  restoreClaim(claim: Claim): void;
   /**
    * Merge inventory from an external feed (e.g. an Eventbrite sync). Existing
    * offers with the same ID are refreshed in place; spots consumed by active

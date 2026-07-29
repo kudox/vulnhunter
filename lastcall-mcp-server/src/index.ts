@@ -51,21 +51,40 @@ function makeStore(): InMemoryOfferStore {
  * backfilled, so the recorder runs from day one even with zero analytics
  * built on top. Without DATABASE_URL everything no-ops.
  */
-async function initPersistence(store: InMemoryOfferStore): Promise<Analytics> {
+async function initPersistence(
+  store: InMemoryOfferStore,
+): Promise<{ analytics: Analytics; db?: LastcallDb }> {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error("Persistence disabled (DATABASE_URL not set) — claims are in-memory only");
-    return NOOP_ANALYTICS;
+    return { analytics: NOOP_ANALYTICS };
   }
   const db = new LastcallDb(url);
   await db.ensureSchema();
 
   const open = await db.loadOpenClaims(new Date());
   for (const { claim } of open) store.restoreClaim(claim);
-  console.error(
-    `Postgres persistence on: schema ensured, ${open.length} open claim(s) rehydrated`,
+
+  // Seed offers' baselines land in the shared inventory ledger before any
+  // claims arrive; feed syncs refresh their own offers' baselines later.
+  const analytics = new Analytics(db);
+  analytics.syncInventoryBaselines(
+    store.allOffers().filter((o) => o.kind === "offer" && o.source === "seed"),
   );
-  return new Analytics(db);
+
+  // Cross-instance hold expiry: sweeps also run before every reserve; this
+  // interval keeps the shared pool fresh even on idle instances.
+  const timer = setInterval(() => {
+    db.sweepExpiredHolds().catch((error) => {
+      console.error("expired-hold sweep failed:", error);
+    });
+  }, 60_000);
+  timer.unref();
+
+  console.error(
+    `Postgres persistence on: schema ensured, ${open.length} open claim(s) rehydrated, claim authority = database`,
+  );
+  return { analytics, db };
 }
 
 /**
@@ -91,6 +110,8 @@ async function startEventbriteSync(store: OfferStore, analytics: Analytics): Pro
     const result = await buildEventbriteInventory(client, rule, syncAt, orgIds);
     store.upsertInventory(result.merchants, result.offers);
     analytics.persistMerchants(result.merchants);
+    // Pre-deduction feed availability -> shared inventory baselines.
+    analytics.syncInventoryBaselines(result.offers);
     analytics.recordEventSnapshots(
       store.allOffers().filter((o) => o.source === "eventbrite"),
       syncAt,
@@ -201,8 +222,8 @@ async function startListingIngest(store: OfferStore, analytics: Analytics): Prom
 
 async function runStdio(): Promise<void> {
   const store = makeStore();
-  const analytics = await initPersistence(store);
-  const { server } = createServer({ store, analytics });
+  const { analytics, db } = await initPersistence(store);
+  const { server } = createServer({ store, analytics, db });
   await startEventbriteSync(store, analytics);
   await startListingIngest(store, analytics);
   const transport = new StdioServerTransport();
@@ -217,8 +238,8 @@ async function runHttp(): Promise<void> {
   // One store shared across requests; a new transport per request keeps the
   // HTTP layer stateless (no sessions), which is the simplest thing to scale.
   const store = makeStore();
-  const analytics = await initPersistence(store);
-  const { server } = createServer({ store, analytics });
+  const { analytics, db } = await initPersistence(store);
+  const { server } = createServer({ store, analytics, db });
   await startEventbriteSync(store, analytics);
   await startListingIngest(store, analytics);
 

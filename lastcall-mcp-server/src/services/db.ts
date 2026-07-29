@@ -48,6 +48,13 @@ CREATE TABLE IF NOT EXISTS claims (
 );
 CREATE INDEX IF NOT EXISTS claims_status_idx ON claims (status);
 
+CREATE TABLE IF NOT EXISTS offer_inventory (
+  offer_id   text PRIMARY KEY,
+  baseline   int NOT NULL,
+  claimed    int NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS event_snapshots (
   id                 bigserial PRIMARY KEY,
   event_id           text NOT NULL,
@@ -223,6 +230,164 @@ export class LastcallDb {
         confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string) : undefined,
       },
     }));
+  }
+
+  /**
+   * Refresh per-offer inventory baselines from a feed sync (the feed's
+   * availability BEFORE local claim deduction). Consumption (`claimed`) is
+   * preserved — it belongs to Postgres, not the feed.
+   */
+  async updateInventoryBaselines(rows: Array<{ offerId: string; baseline: number }>): Promise<void> {
+    if (rows.length === 0) return;
+    const values: unknown[] = [];
+    const tuples = rows.map((r, i) => {
+      values.push(r.offerId, r.baseline);
+      return `($${i * 2 + 1},$${i * 2 + 2}::int)`;
+    });
+    await this.pool.query(
+      `INSERT INTO offer_inventory (offer_id, baseline)
+       VALUES ${tuples.join(",")}
+       ON CONFLICT (offer_id) DO UPDATE SET baseline = EXCLUDED.baseline, updated_at = now()`,
+      values,
+    );
+  }
+
+  /**
+   * Cross-instance lazy expiry: flip lapsed holds to 'expired' and return
+   * their seats. Row locks make concurrent sweeps safe — each hold is
+   * expired exactly once.
+   */
+  async sweepExpiredHolds(now: Date = new Date()): Promise<number> {
+    const result = await this.pool.query(
+      `WITH expired AS (
+         UPDATE claims SET status = 'expired', updated_at = now()
+         WHERE status = 'held' AND hold_expires_at <= $1
+         RETURNING offer_id, party_size
+       ),
+       totals AS (
+         SELECT offer_id, SUM(party_size)::int AS freed FROM expired GROUP BY offer_id
+       )
+       UPDATE offer_inventory oi
+       SET claimed = GREATEST(0, oi.claimed - t.freed), updated_at = now()
+       FROM totals t WHERE oi.offer_id = t.offer_id
+       RETURNING t.freed`,
+      [now],
+    );
+    return result.rows.reduce((sum, r) => sum + Number(r.freed), 0);
+  }
+
+  /**
+   * THE multi-instance claim path: atomically reserve seats and insert the
+   * claim in one transaction. The conditional UPDATE's row lock serializes
+   * concurrent claimers across every instance sharing this database — the
+   * reservation succeeds only if `claimed + party <= baseline`.
+   */
+  async reserveAndInsertClaim(
+    claim: Claim,
+    offer: Offer,
+  ): Promise<{ ok: true; remaining: number } | { ok: false; remaining: number }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      // Ensure the inventory row exists; first sight uses the offer's local
+      // baseline. An existing row's baseline is feed-owned — leave it alone.
+      await client.query(
+        `INSERT INTO offer_inventory (offer_id, baseline) VALUES ($1, $2)
+         ON CONFLICT (offer_id) DO NOTHING`,
+        [offer.id, offer.totalQuantity],
+      );
+      const reserved = await client.query(
+        `UPDATE offer_inventory
+         SET claimed = claimed + $2, updated_at = now()
+         WHERE offer_id = $1 AND claimed + $2 <= baseline
+         RETURNING baseline - claimed AS remaining`,
+        [offer.id, claim.partySize],
+      );
+      if (reserved.rowCount === 0) {
+        await client.query("ROLLBACK");
+        const row = await this.pool.query(
+          `SELECT GREATEST(0, baseline - claimed)::int AS remaining FROM offer_inventory WHERE offer_id = $1`,
+          [offer.id],
+        );
+        return { ok: false, remaining: Number(row.rows[0]?.remaining ?? 0) };
+      }
+      await client.query(
+        `INSERT INTO claims (id, offer_id, offer_title, offer_source, merchant_id, party_size,
+                             status, redemption_code, total_cents, platform_fee_cents,
+                             hold_expires_at, event_starts_at, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,$12)`,
+        [
+          claim.id,
+          claim.offerId,
+          offer.title,
+          offer.source,
+          offer.merchantId,
+          claim.partySize,
+          claim.status,
+          claim.redemptionCode,
+          claim.totalCents,
+          claim.holdExpiresAt,
+          offer.startsAt,
+          claim.createdAt,
+        ],
+      );
+      await client.query("COMMIT");
+      return { ok: true, remaining: Number(reserved.rows[0].remaining) };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Release an active hold and return its seats, atomically. */
+  async releaseClaimAndSeats(claim: Claim): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const updated = await client.query(
+        `UPDATE claims SET status = 'released', updated_at = now()
+         WHERE id = $1 AND status = 'held' RETURNING party_size, offer_id`,
+        [claim.id],
+      );
+      if (updated.rowCount === 1) {
+        await client.query(
+          `UPDATE offer_inventory SET claimed = GREATEST(0, claimed - $2), updated_at = now()
+           WHERE offer_id = $1`,
+          [updated.rows[0].offer_id, updated.rows[0].party_size],
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Look up a claim by id or redemption code — the cross-instance confirm path. */
+  async findClaim(idOrCode: string): Promise<Claim | undefined> {
+    const result = await this.pool.query(
+      `SELECT id, offer_id, party_size, status, redemption_code, total_cents,
+              hold_expires_at, created_at, confirmed_at
+       FROM claims WHERE id = $1 OR redemption_code = upper($1) LIMIT 1`,
+      [idOrCode],
+    );
+    const row = result.rows[0];
+    if (!row) return undefined;
+    return {
+      id: row.id as string,
+      offerId: row.offer_id as string,
+      partySize: row.party_size as number,
+      status: row.status as Claim["status"],
+      redemptionCode: row.redemption_code as string,
+      totalCents: row.total_cents as number,
+      holdExpiresAt: new Date(row.hold_expires_at as string),
+      createdAt: new Date(row.created_at as string),
+      confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string) : undefined,
+    };
   }
 
   async insertSnapshots(rows: SnapshotRow[]): Promise<void> {

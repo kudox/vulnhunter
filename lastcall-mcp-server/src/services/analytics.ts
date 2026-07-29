@@ -1,5 +1,4 @@
-import { PLATFORM_FEE_PCT } from "../constants.js";
-import type { Claim, Merchant, Offer } from "../types.js";
+import type { Merchant, Offer } from "../types.js";
 import type { LastcallDb, SearchLogEntry, SnapshotRow } from "./db.js";
 import { snapshotRowFromOffer } from "./db.js";
 
@@ -73,10 +72,16 @@ export class Analytics {
     this.run(`merchants x${merchants.length}`, () => this.db!.upsertMerchants(merchants));
   }
 
-  persistClaim(claim: Claim, offer: Offer | undefined): void {
-    const platformFeeCents =
-      claim.status === "confirmed" ? Math.round(claim.totalCents * (PLATFORM_FEE_PCT / 100)) : 0;
-    this.run(`claim ${claim.id}`, () => this.db!.saveClaim(claim, offer, platformFeeCents));
+  /**
+   * Push feed-side availability baselines (pre-local-deduction) for
+   * claimable offers into the shared inventory ledger.
+   */
+  syncInventoryBaselines(offers: Offer[]): void {
+    const rows = offers
+      .filter((o) => o.kind === "offer")
+      .map((o) => ({ offerId: o.id, baseline: o.remainingQuantity }));
+    if (rows.length === 0) return;
+    this.run(`baselines x${rows.length}`, () => this.db!.updateInventoryBaselines(rows));
   }
 
   logSearch(entry: SearchLogEntry): void {
