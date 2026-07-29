@@ -13,7 +13,8 @@ the session date that shipped them.
 ## Backlog
 
 ### OSINT event ingestion (see [docs/OSINT-EVENT-SOURCING.md](./docs/OSINT-EVENT-SOURCING.md))
-- [ ] Remaining Phase 1 adapter: Funcheap (added: 2026-07-25)
+- [ ] Re-measure Phase-1 done-bar from a morning run: full-day event count for one SF day vs manual Funcheap/Chronicle spot-check (7pm run showed 19 events left in-window; needs a fair full-day measurement) (added: 2026-07-29)
+- [ ] Funcheap venue merchant quality: many listings land on "Venue TBA" when location.name is empty — consider parsing venue from description/address (added: 2026-07-29)
 - [ ] Grow the ICS feed list: find working civic feeds (SFPL/Rec & Parks event calendars don't expose obvious public ICS; investigate their platforms), more Meetup groups, Luma calendar ICS URLs (added: 2026-07-28)
 - [ ] MONTHLY RRULE expansion (BYDAY ordinals like 2TU) — currently skipped with reasons (added: 2026-07-28)
 - [ ] JSON-LD crawler follow-links mode: fetch per-event detail pages from calendar pages — the yield fix for venues whose calendars carry no inline JSON-LD (added: 2026-07-28)
@@ -40,6 +41,11 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-29 (Funcheap adapter — Phase 1 sources complete)
+- [x] FuncheapAdapter: date-archive JSON-LD ingestion, SF region filter, title-paren + zip neighborhoods, keyword category inference, HTML entity decoding (shared `text.ts`), robots compliance, per-day error isolation
+- [x] `npm run test:funcheap`; live yield: 251 listings / 209 free over 14 days
+- [x] Full four-source live run: 405 raw → 371 deduplicated listings; three-source corroboration observed
 
 ### Session 2026-07-28 (ICS feed adapter)
 - [x] Dependency-free iCalendar parser: unfolding, TZID/UTC/floating datetimes, escaping, DURATION, DAILY/WEEKLY RRULE expansion with INTERVAL/COUNT/UNTIL/EXDATE

@@ -20,6 +20,7 @@ import {
   buildEventbriteInventory,
   promotionRuleFromEnv,
 } from "./services/eventbriteInventory.js";
+import { FuncheapAdapter, funcheapConfigFromEnv } from "./services/adapters/funcheap.js";
 import { IcsFeedAdapter } from "./services/adapters/icsFeeds.js";
 import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
 import { SF_ICS_FEEDS } from "./services/adapters/sfIcsFeeds.js";
@@ -123,9 +124,14 @@ async function startListingIngest(store: OfferStore): Promise<void> {
     adapters.push(new IcsFeedAdapter({ feeds, maxDaysOut }));
   }
 
+  // Funcheap SF: curated free/cheap events via the JSON-LD on their
+  // date-archive pages. Opt-in (third-party fetches): LASTCALL_FUNCHEAP=on.
+  const fcConfig = funcheapConfigFromEnv();
+  if (fcConfig) adapters.push(new FuncheapAdapter(fcConfig));
+
   if (adapters.length === 0) {
     console.error(
-      "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY, LASTCALL_JSONLD=on, and/or LASTCALL_ICS=on)",
+      "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY, LASTCALL_JSONLD=on, LASTCALL_ICS=on, and/or LASTCALL_FUNCHEAP=on)",
     );
     return;
   }

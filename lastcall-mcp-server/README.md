@@ -102,6 +102,16 @@ LASTCALL_ICS=on LASTCALL_ICS_FEEDS=webcal://...,https://...  # your own feeds
 
 Ingests published iCalendar feeds — Google Calendar public ICS, Meetup group iCals (`meetup.com/<group>/events/ical/`, still public post-API-lockdown), library/city calendars. These are explicitly machine-readable, extremely stable, and skew toward free community events no ticketing API carries. The dependency-free parser (`src/services/ics.ts`) handles line unfolding, TZID/UTC/floating datetimes, text escaping, DURATION, and **recurring events** (DAILY/WEEKLY RRULE expansion with INTERVAL/COUNT/UNTIL/EXDATE — the weekly-workshop pattern that dominates civic calendars; MONTHLY+ rules are skipped with logged reasons rather than mis-expanded). Feeds flagged `assumeFree` yield $0 listings since iCalendar has no price field; others get `priceUnknown`. Curated list in `src/services/adapters/sfIcsFeeds.ts` (all verified live); `webcal://` URLs accepted. Verify offline: `npm run test:ics`.
 
+## Funcheap SF (OSINT source #4 — curated free/cheap events)
+
+```bash
+LASTCALL_FUNCHEAP=on npm start
+```
+
+Funcheap's date-archive pages embed full schema.org Event JSON-LD (~2 dozen curated events/day with explicit `offers.price`, 0 = free), so the adapter is a thin loop over the next 14 daily pages reusing the crawler's JSON-LD extraction — no brittle HTML parsing. Region-filtered to SF proper (their coverage spans the Bay), neighborhoods recovered from title parentheticals and address zips, categories inferred by keyword, WordPress HTML entities decoded. Robots.txt honored (only `/search/` is disallowed); every listing links back to the Funcheap event page — they run on traffic and we send it. Live yield 2026-07-29: **251 listings over 14 days, 209 of them free.** Verify offline: `npm run test:funcheap`.
+
+Full four-source live run (Ticketmaster + venue crawler + ICS + Funcheap): 405 raw events → 34 cross-source merges → 371 deduplicated listings, including events corroborated by three independent sources.
+
 ## Eventbrite integration
 
 With a token, the server ingests live events from your Eventbrite organization(s) and turns the under-sold ones into LastCall offers alongside (or instead of) the seed data:

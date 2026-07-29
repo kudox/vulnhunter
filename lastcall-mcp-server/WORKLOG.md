@@ -10,6 +10,27 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Funcheap adapter: Phase-1 sources complete
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Shipped**
+- `FuncheapAdapter` (`LASTCALL_FUNCHEAP=on`): loops the next 14 date-archive pages (`sf.funcheap.com/YYYY/MM/DD/`, Pacific-date URLs), reusing the JSON-LD crawler's extraction. SF region filter (their coverage spans the Bay), neighborhood from title parentheticals + address zips, keyword category inference, WordPress HTML-entity decoding (new shared `src/services/text.ts`).
+- Probing before building paid off: robots.txt allows archives (only `/search/` disallowed), the WP REST API is open but posts carry *publish* dates not event dates — the archive pages' embedded schema.org Event list (with explicit `offers.price`, 0 = free, and offset-qualified datetimes) is the right surface by far.
+
+**Live validation (2026-07-29)**
+- Funcheap alone: **251 listings over 14 days, 209 free** — the single densest free-event source, as the OSINT plan predicted.
+- Full four-source run (TM + venue crawler + ICS + Funcheap): 405 raw → **34 cross-source merges → 371 deduplicated listings + 16 seed offers**; 9 events multi-source corroborated including one three-source event (Cobb's "Get It?! Gameshow": ticketmaster + venue JSON-LD + funcheap).
+- Done-bar caveat recorded honestly: the 12h "tonight" window measured 19 events, but the run happened at 7pm PT when most of the evening had started; needs a morning re-measurement (backlogged).
+
+**Gotchas**
+- Funcheap's JSON-LD text is WordPress HTML-entity-encoded (`&#8220;`, `&#038;`) — decode titles/descriptions/venues or agent-facing output is full of `&#8217;`.
+- Their `location.address` is a plain string (not a PostalAddress object) and often zipless; title parentheticals ("… (SoMa)") are the more reliable neighborhood signal.
+- Many events have empty `location.name` → "Venue TBA" merchants; venue-quality backfill backlogged.
+- Empty archive days 404 — treat as normal, not an error.
+
+---
+
 ## 2026-07-28 — ICS feed adapter (OSINT source #3, the free-event layer)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
