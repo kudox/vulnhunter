@@ -10,6 +10,21 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Payments strategy decided (docs/PAYMENTS-STRATEGY.md)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Decision** — "how do payments wire into merchant systems" splits into three lanes, and in two of them LastCall deliberately stays OUT of the money flow:
+1. **Direct-merchant offers → Stripe Connect** (destination charges, 12% `application_fee`, merchant is merchant-of-record). No merchant-system integration exists or is needed.
+2. **Eventbrite-connected merchants → promo-code rail**: mint single-use discount codes via the merchant's own connected account at claim time; checkout stays on Eventbrite; redemption read via the ticket-class API; fee billed monthly. No payment processing, airtight attribution, and it kills the double-sell gotcha (Eventbrite's ledger is the only ledger). Ships before Stripe.
+3. **OSINT listings → affiliate-tagged link-outs**: Ticketmaster's Impact program is real but pays ~1%/~$0.30 — two orders of magnitude below the 12% core model. Tag the links (free pennies + click data), never rank by commission.
+
+**Key numbers**: $60 ticket → $0.60 affiliate vs $7.20 redemption fee. Watch item: agentic-checkout protocols could convert Lane 3 into in-conversation purchasing; don't pursue Ticketmaster's gated Partner APIs now.
+
+TASKS.md payments backlog restructured around the three lanes (build order: promo-code rail → Stripe Connect → affiliate tags).
+
+---
+
 ## 2026-07-29 — Multi-instance claim path
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

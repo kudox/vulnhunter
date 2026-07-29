@@ -24,11 +24,16 @@ the session date that shipped them.
 - [ ] Anchor enrichment: record corroborating listing sources on existing offers instead of only logging the merge (added: 2026-07-25)
 - [ ] Phase-1 done-bar check: ≥50 deduplicated free+paid events for a given SF evening vs manual Funcheap/Chronicle spot-check (added: 2026-07-25)
 
+### Payments (strategy: [docs/PAYMENTS-STRATEGY.md](./docs/PAYMENTS-STRATEGY.md))
+- [ ] Lane 2 — Eventbrite promo-code rail: mint single-use discount codes via the merchant's connected account at claim time; read redemption via ticket-class API; monthly fee billing. Ships first — smallest step to real revenue (added: 2026-07-29)
+- [ ] Lane 1 — Stripe Connect: Express onboarding for direct merchants, destination charges with 12% `application_fee` in `confirm_redemption`, agentic checkout via MPP (added: 2026-07-29)
+- [ ] Lane 3 — Impact affiliate tagging on Ticketmaster link-outs (afternoon-sized; review ToS re: sponsored contexts first) (added: 2026-07-29)
+- [ ] Watch: agentic checkout announcements from ticketing platforms → re-evaluate Lane 3 (added: 2026-07-29)
+
 ### Platform
 - [ ] Display-freshness reconciliation: periodically pull `offer_inventory` claimed counts so each instance's shown remaining matches the shared ledger between syncs (correctness already guaranteed at reserve time) (added: 2026-07-29)
 - [ ] First analytics queries over event_snapshots: sell-through velocity by category/venue, sell-out prediction, discount-timing correlation (recorder is live; analysis unbuilt) (added: 2026-07-29)
 - [ ] Snapshot event disappearance (event vanishing from a source is itself a signal — likely sold out or cancelled upstream) (added: 2026-07-29)
-- [ ] Payments in confirm step — Stripe agentic checkout / Machine Payments Protocol (added: 2026-07-25)
 - [ ] Eventbrite write-back: push holds/orders to Eventbrite to close the double-sell gap (see WORKLOG 2026-07-25 gotcha) (added: 2026-07-25)
 - [ ] Per-merchant promotion rules engine (replace global `LASTCALL_EB_*` rule) (added: 2026-07-25)
 - [ ] Auth + rate limiting for the HTTP transport (added: 2026-07-25)
