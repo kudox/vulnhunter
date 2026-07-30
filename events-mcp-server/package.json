@@ -1,0 +1,42 @@
+{
+  "name": "events-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for the events server — a perishable-inventory promotion marketplace. Merchants post expiring inventory (tonight's empty seats, unsold tickets, open slots) as targeted offers; AI agents search, claim, and redeem them on behalf of users.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "events-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "sync": "node dist/sync.js",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "smoke": "tsx scripts/smoke.ts",
+    "test:eventbrite": "tsx scripts/eventbrite-test.ts",
+    "test:listings": "tsx scripts/listings-test.ts",
+    "test:jsonld": "tsx scripts/jsonld-test.ts",
+    "test:ics": "tsx scripts/ics-test.ts",
+    "test:funcheap": "tsx scripts/funcheap-test.ts",
+    "test:analytics": "tsx scripts/analytics-test.ts",
+    "test:pg": "tsx scripts/pg-integration-test.ts",
+    "test": "npm run smoke && npm run test:eventbrite && npm run test:listings && npm run test:jsonld && npm run test:ics && npm run test:funcheap && npm run test:analytics"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "express": "^4.21.2",
+    "pg": "^8.22.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
