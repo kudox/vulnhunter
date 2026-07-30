@@ -1,6 +1,6 @@
 import type { Merchant, Offer } from "../types.js";
 import type { LastcallDb, SearchLogEntry, SnapshotRow } from "./db.js";
-import { snapshotRowFromOffer } from "./db.js";
+import { composeFingerprint, snapshotRowFromOffer } from "./db.js";
 
 /**
  * Analytics + durability side-channel. Every method is fire-and-forget and
@@ -11,14 +11,14 @@ import { snapshotRowFromOffer } from "./db.js";
 
 /** The fields whose change makes a snapshot worth recording. */
 export function snapshotFingerprint(offer: Offer): string {
-  return [
+  return composeFingerprint(
     offer.remainingQuantity,
     offer.totalQuantity,
     offer.priceCents,
     offer.priceUnknown ?? false,
     offer.startsAt.getTime(), // reschedules matter
     (offer.sources ?? [offer.source]).length, // new corroboration matters
-  ].join("|");
+  );
 }
 
 /**
@@ -51,6 +51,20 @@ export class Analytics {
 
   get enabled(): boolean {
     return this.db !== undefined;
+  }
+
+  /**
+   * Load the last recorded fingerprint per event so delta-only recording
+   * survives process boundaries — essential for one-shot scheduled workers,
+   * useful on server restarts. Returns the number of primed events.
+   */
+  async primeFingerprints(): Promise<number> {
+    if (!this.db) return 0;
+    const latest = await this.db.loadLatestFingerprints();
+    for (const [eventId, fp] of latest) {
+      if (!this.fingerprints.has(eventId)) this.fingerprints.set(eventId, fp);
+    }
+    return latest.size;
   }
 
   private run(what: string, op: () => Promise<void>): void {

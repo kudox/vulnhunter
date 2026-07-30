@@ -78,6 +78,12 @@ The store is a **hybrid**: listings stay in-memory (they're a disposable cache, 
 
 Without `DATABASE_URL` everything no-ops: dev and all fixture suites run database-free. Schema is created idempotently on boot (`src/services/db.ts`). Integration test (needs a reachable database): `DATABASE_URL=... npm run test:pg`; unit tests for the delta recorder: `npm run test:analytics`.
 
+### Accumulating history without a server (`npm run sync`)
+
+The intervals above only run while a server process is alive. For history that accumulates unattended, `dist/sync.js` is a **one-shot sync worker**: it runs every configured source once, records snapshots/baselines, and exits — built for schedulers. On startup it primes the delta recorder from the database's own history, so a fresh process (every cron run is one) only records what actually changed since the last run.
+
+The repo ships a GitHub Actions schedule (`.github/workflows/lastcall-sync.yml`) that runs it hourly: add `DATABASE_URL` (a free Neon database works) and `TICKETMASTER_API_KEY` as repo Actions secrets, and history starts accumulating for every configured market with zero servers. Note: GitHub only fires `schedule:` triggers from the **default branch** — until the workflow is merged there, trigger it manually from the Actions tab. The worker defaults seed (fictional demo) data **off** so it never pollutes the history tables.
+
 ### Multi-instance claims
 
 With a database configured, **Postgres is the claim authority** — any number of server instances can safely share inventory:

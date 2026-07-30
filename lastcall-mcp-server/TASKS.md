@@ -8,7 +8,7 @@ the session date that shipped them.
 
 ## In Progress
 
-*(nothing — pick from backlog)*
+- [ ] Start the history clock (waiting on user): create a free Neon (or similar) Postgres, add `DATABASE_URL` + `TICKETMASTER_API_KEY` as GitHub Actions secrets, merge the sync workflow to the default branch so the hourly schedule fires (added: 2026-07-29)
 
 ## Backlog
 
@@ -52,6 +52,13 @@ the session date that shipped them.
 - [ ] Partnership outreach candidates: Funcheap, DoStuff network (DoTheBay) — link-out attribution first, data partnership later (added: 2026-07-25)
 
 ## Done
+
+### Session 2026-07-29 (sync worker + scheduled history)
+- [x] One-shot sync worker (`npm run sync` / `dist/sync.js`): all configured sources once, snapshots recorded, clean exit; seed data off by default; dry-run warning without DATABASE_URL
+- [x] Shared sync module (`services/sources.ts`) — server intervals and the worker run one code path
+- [x] Cross-process delta suppression: fingerprints primed from `event_snapshots` on startup (found live: fresh worker processes were re-recording all 432 events per run; after fix, run 3 added zero rows)
+- [x] GitHub Actions hourly schedule (`.github/workflows/lastcall-sync.yml`) — needs secrets + default-branch merge to fire
+- [x] Live-verified against real Postgres: 3 worker runs, 432 events, 864 rows (first-sight ×1 + pre-fix duplicate set), zero growth once primed
 
 ### Session 2026-07-29 (Sacramento market — dogfooding)
 - [x] Multi-market Ticketmaster adapter (`TICKETMASTER_MARKETS`, default SF + Sacramento)

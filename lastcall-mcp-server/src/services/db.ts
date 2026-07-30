@@ -121,6 +121,22 @@ export interface SearchLogEntry {
   topResultIds: string[];
 }
 
+/**
+ * The canonical snapshot fingerprint: the fields whose change makes a new
+ * snapshot row worth recording. Composed here so the in-memory recorder and
+ * the database primer can never drift apart.
+ */
+export function composeFingerprint(
+  remaining: number,
+  total: number,
+  priceCents: number,
+  priceUnknown: boolean,
+  startsAtMs: number,
+  sourceCount: number,
+): string {
+  return [remaining, total, priceCents, priceUnknown, startsAtMs, sourceCount].join("|");
+}
+
 export function snapshotRowFromOffer(offer: Offer, syncAt: Date): SnapshotRow {
   return {
     eventId: offer.id,
@@ -388,6 +404,36 @@ export class LastcallDb {
       createdAt: new Date(row.created_at as string),
       confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string) : undefined,
     };
+  }
+
+  /**
+   * Latest recorded fingerprint per event — primes a fresh process's
+   * delta-only recorder so scheduled one-shot workers (a new process every
+   * run) don't re-record unchanged events each time.
+   */
+  async loadLatestFingerprints(): Promise<Map<string, string>> {
+    const result = await this.pool.query(
+      `SELECT DISTINCT ON (event_id)
+         event_id, remaining_quantity, total_quantity, price_cents,
+         price_unknown, starts_at, sources
+       FROM event_snapshots
+       ORDER BY event_id, sync_at DESC`,
+    );
+    const map = new Map<string, string>();
+    for (const row of result.rows) {
+      map.set(
+        row.event_id as string,
+        composeFingerprint(
+          row.remaining_quantity as number,
+          row.total_quantity as number,
+          row.price_cents as number,
+          row.price_unknown as boolean,
+          new Date(row.starts_at as string).getTime(),
+          (row.sources as string[]).length,
+        ),
+      );
+    }
+    return map;
   }
 
   async insertSnapshots(rows: SnapshotRow[]): Promise<void> {

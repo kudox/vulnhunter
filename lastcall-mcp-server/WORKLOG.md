@@ -10,6 +10,27 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Sync worker + scheduled history accumulation
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Context**: user asked whether polling was interval-based or manual. Honest answer: interval-based *but only while a server runs*, and nothing runs anywhere — every live number so far came from one-off manual runs; **zero history had accumulated**. This milestone makes accumulation unattended.
+
+**Shipped**
+- `src/sync.ts` one-shot worker (`npm run sync`): all configured sources once, snapshots/baselines recorded, clean exit with per-source summary; exit 1 only when configured work failed. Seed (fictional) data defaults **off** so demo offers never enter the history tables.
+- `src/services/sources.ts`: sync logic extracted from index.ts so the server's interval loops and the worker run one code path.
+- `.github/workflows/lastcall-sync.yml` (repo root): hourly schedule + manual dispatch; needs `DATABASE_URL` and `TICKETMASTER_API_KEY` repo secrets. **GitHub only fires schedules from the default branch** — inert until merged there.
+- **Cross-process delta fix**: fresh worker processes re-recorded all events every run (fingerprint cache was per-process; live runs 1+2 wrote exactly 2×432 rows). `Analytics.primeFingerprints()` now loads the latest fingerprint per event from `event_snapshots` on startup (`composeFingerprint` shared between recorder and primer so they can't drift). Live run 3: 432 primed, **zero rows added**.
+
+**Live validation (local PostgreSQL 16, real keys)**
+- 3 worker runs: 432 listings in view (both markets, all four sources), 132 Sacramento snapshot rows, run-3 growth zero. Worker runtime ~35–55s — comfortably inside GitHub Actions free-tier budget at hourly cadence.
+
+**Gotchas**
+- **Delta-only recording must survive process boundaries** — an in-memory-only fingerprint cache silently 10×'s the snapshot volume and breaks "row = change" semantics precisely in the scheduled-worker mode the recorder exists for. Caught only because the live validation checked row counts across runs.
+- GitHub Actions `schedule:` triggers run exclusively from the default branch; `workflow_dispatch` works from any branch.
+
+---
+
 ## 2026-07-29 — Sacramento market added (dogfooding)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

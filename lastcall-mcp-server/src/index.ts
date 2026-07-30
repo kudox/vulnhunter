@@ -15,24 +15,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import { createServer } from "./server.js";
-import { EventbriteClient } from "./services/eventbrite.js";
-import {
-  buildEventbriteInventory,
-  promotionRuleFromEnv,
-} from "./services/eventbriteInventory.js";
-import { FuncheapAdapter, funcheapConfigFromEnv } from "./services/adapters/funcheap.js";
 import { Analytics, NOOP_ANALYTICS } from "./services/analytics.js";
 import { LastcallDb } from "./services/db.js";
-import { IcsFeedAdapter } from "./services/adapters/icsFeeds.js";
-import { JsonLdCrawlerAdapter } from "./services/adapters/jsonldCrawler.js";
-import { CURATED_ICS_FEEDS } from "./services/adapters/icsFeedList.js";
-import { CURATED_VENUE_PAGES } from "./services/adapters/venues.js";
 import {
-  TicketmasterAdapter,
-  ticketmasterConfigFromEnv,
-} from "./services/adapters/ticketmaster.js";
-import type { SourceAdapter } from "./services/adapters/types.js";
-import { runListingIngest } from "./services/ingest.js";
+  buildListingAdaptersFromEnv,
+  syncEventbriteOnce,
+  syncListingsOnce,
+} from "./services/sources.js";
 import { InMemoryOfferStore } from "./store/store.js";
 import type { OfferStore } from "./store/store.js";
 
@@ -68,6 +57,8 @@ async function initPersistence(
   // Seed offers' baselines land in the shared inventory ledger before any
   // claims arrive; feed syncs refresh their own offers' baselines later.
   const analytics = new Analytics(db);
+  const primed = await analytics.primeFingerprints();
+  if (primed > 0) console.error(`snapshot recorder primed with ${primed} event fingerprint(s)`);
   analytics.syncInventoryBaselines(
     store.allOffers().filter((o) => o.kind === "offer" && o.source === "seed"),
   );
@@ -93,47 +84,23 @@ async function initPersistence(
  * configurable via EVENTBRITE_REFRESH_MINUTES; 0 disables the interval).
  */
 async function startEventbriteSync(store: OfferStore, analytics: Analytics): Promise<void> {
-  const token = process.env.EVENTBRITE_API_TOKEN;
-  if (!token) {
+  if (!process.env.EVENTBRITE_API_TOKEN) {
     console.error("Eventbrite sync disabled (EVENTBRITE_API_TOKEN not set) — serving seed inventory only");
     return;
   }
 
-  const client = new EventbriteClient(token);
-  const rule = promotionRuleFromEnv();
-  const orgIds = process.env.EVENTBRITE_ORG_IDS?.split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  const sync = async (): Promise<void> => {
-    const syncAt = new Date();
-    const result = await buildEventbriteInventory(client, rule, syncAt, orgIds);
-    store.upsertInventory(result.merchants, result.offers);
-    analytics.persistMerchants(result.merchants);
-    // Pre-deduction feed availability -> shared inventory baselines.
-    analytics.syncInventoryBaselines(result.offers);
-    analytics.recordEventSnapshots(
-      store.allOffers().filter((o) => o.source === "eventbrite"),
-      syncAt,
-    );
-    console.error(
-      `Eventbrite sync: ${result.offers.length} offer(s) from ${result.merchants.length} venue(s); skipped ${result.skipped.length} event(s)` +
-        (result.skipped.length > 0
-          ? ` (${result.skipped.map((s) => `${s.eventId}: ${s.reason}`).join("; ")})`
-          : ""),
-    );
-  };
-
   // First sync is awaited so startup fails loudly on a bad token instead of
   // silently serving seed data.
-  await sync();
+  console.error(await syncEventbriteOnce(store, analytics));
 
   const refreshMinutes = Number(process.env.EVENTBRITE_REFRESH_MINUTES ?? "30");
   if (Number.isFinite(refreshMinutes) && refreshMinutes > 0) {
     const timer = setInterval(() => {
-      sync().catch((error) => {
-        console.error("Eventbrite re-sync failed (keeping existing inventory):", error);
-      });
+      syncEventbriteOnce(store, analytics)
+        .then((line) => console.error(line))
+        .catch((error) => {
+          console.error("Eventbrite re-sync failed (keeping existing inventory):", error);
+        });
     }, refreshMinutes * 60_000);
     timer.unref(); // don't keep the process alive just to re-sync
   }
@@ -145,43 +112,7 @@ async function startEventbriteSync(store: OfferStore, analytics: Analytics): Pro
  * 0 disables). Currently wired: Ticketmaster (TICKETMASTER_API_KEY).
  */
 async function startListingIngest(store: OfferStore, analytics: Analytics): Promise<void> {
-  const adapters: SourceAdapter[] = [];
-  const tmConfig = ticketmasterConfigFromEnv();
-  if (tmConfig) adapters.push(new TicketmasterAdapter(tmConfig));
-
-  // Venue-website crawler: no API key, but it makes outbound requests to
-  // third-party sites, so it's opt-in. LASTCALL_JSONLD_VENUES overrides the
-  // curated SF list with comma-separated URLs.
-  if (process.env.LASTCALL_JSONLD === "on") {
-    const urls = process.env.LASTCALL_JSONLD_VENUES?.split(",")
-      .map((u) => u.trim())
-      .filter(Boolean);
-    const venues = urls
-      ? urls.map((url) => ({ url, name: new URL(url).hostname }))
-      : CURATED_VENUE_PAGES;
-    const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
-    adapters.push(new JsonLdCrawlerAdapter({ venues, maxDaysOut }));
-  }
-
-  // ICS/iCal feeds: free civic + community events. Opt-in like the crawler.
-  // LASTCALL_ICS_FEEDS overrides the curated list with comma-separated URLs
-  // (webcal:// accepted); overridden feeds default to unknown price.
-  if (process.env.LASTCALL_ICS === "on") {
-    const urls = process.env.LASTCALL_ICS_FEEDS?.split(",")
-      .map((u) => u.trim())
-      .filter(Boolean);
-    const feeds = urls
-      ? urls.map((url) => ({ url, name: new URL(url.replace(/^webcal:\/\//i, "https://")).hostname }))
-      : CURATED_ICS_FEEDS;
-    const maxDaysOut = Number(process.env.LASTCALL_LISTING_MAX_DAYS_OUT ?? "14") || 14;
-    adapters.push(new IcsFeedAdapter({ feeds, maxDaysOut }));
-  }
-
-  // Funcheap SF: curated free/cheap events via the JSON-LD on their
-  // date-archive pages. Opt-in (third-party fetches): LASTCALL_FUNCHEAP=on.
-  const fcConfig = funcheapConfigFromEnv();
-  if (fcConfig) adapters.push(new FuncheapAdapter(fcConfig));
-
+  const adapters = buildListingAdaptersFromEnv();
   if (adapters.length === 0) {
     console.error(
       "Listing ingest disabled (no sources configured — set TICKETMASTER_API_KEY, LASTCALL_JSONLD=on, LASTCALL_ICS=on, and/or LASTCALL_FUNCHEAP=on)",
@@ -190,21 +121,7 @@ async function startListingIngest(store: OfferStore, analytics: Analytics): Prom
   }
 
   const sync = async (): Promise<void> => {
-    const syncAt = new Date();
-    const summary = await runListingIngest(store, adapters, syncAt);
-    const listings = store.allOffers().filter((o) => o.kind === "listing");
-    analytics.recordEventSnapshots(listings, syncAt);
-    analytics.persistMerchants(
-      [...new Set(listings.map((o) => o.merchantId))]
-        .map((id) => store.getMerchant(id))
-        .filter((m): m is NonNullable<typeof m> => m !== undefined),
-    );
-    const perSource = summary.bySource
-      .map((s) => `${s.source}: ${s.error ? `ERROR ${s.error}` : `${s.ingested} in, ${s.skipped} skipped`}`)
-      .join(" | ");
-    console.error(
-      `Listing ingest: ${summary.totalUpserted} upserted, ${summary.merged} merged as duplicates — ${perSource}`,
-    );
+    console.error(await syncListingsOnce(store, analytics, adapters));
   };
 
   await sync();
