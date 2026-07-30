@@ -10,6 +10,18 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — Database strategy decided (docs/DATABASE-STRATEGY.md)
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+**Decision**: **Neon** now (scale-to-zero matches the hourly sync worker; post-Databricks pricing favorable), with the vendor choice deliberately low-stakes because of two architectural facts recorded in the doc:
+1. **LastCall shards perfectly by city** (no cross-city transaction will ever exist) → distributed-write databases are the wrong problem; Europe = a separate regional cluster (GDPR argues for it anyway); max topology = N regional Postgres clusters.
+2. **Two workloads, one schema**: tiny OLTP core (claims) + huge append-only time-series (snapshots, 95%+ of volume) → the real national-scale move is graduating history to ClickHouse/Tinybird, not swapping OLTP vendors.
+
+Scale math: full US+EU coverage ≈ 1–2M active events, tens of millions of snapshot rows/month — one partitioned Postgres carries it. Supabase noted as honest second place (bundled auth for the future merchant dashboard, but no scale-to-zero). Doc includes the concrete Neon setup runbook (project → secrets → default-branch merge → two-run validation → verification SQL).
+
+---
+
 ## 2026-07-29 — Sync worker + scheduled history accumulation
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

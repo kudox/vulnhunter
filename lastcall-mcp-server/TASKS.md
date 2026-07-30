@@ -8,7 +8,7 @@ the session date that shipped them.
 
 ## In Progress
 
-- [ ] Start the history clock (waiting on user): create a free Neon (or similar) Postgres, add `DATABASE_URL` + `TICKETMASTER_API_KEY` as GitHub Actions secrets, merge the sync workflow to the default branch so the hourly schedule fires (added: 2026-07-29)
+- [ ] Start the history clock (waiting on user) — follow the [Neon setup runbook](./docs/DATABASE-STRATEGY.md#neon-setup-runbook-the-concrete-next-steps): create the Neon project (us-west-2), add `DATABASE_URL` + `TICKETMASTER_API_KEY` Actions secrets, merge to default branch, validate with two manual workflow runs (added: 2026-07-29)
 
 ## Backlog
 
