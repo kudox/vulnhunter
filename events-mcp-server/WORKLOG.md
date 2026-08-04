@@ -10,6 +10,17 @@ again if forgotten.
 
 ---
 
+## 2026-07-29 — History clock started: first snapshots recorded in Neon
+
+**Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)
+
+- User created the Neon project (us-west-2, Postgres 18). Dev-container egress is HTTPS-only, so raw TCP 5432 is unreachable from remote sessions — **Neon's HTTPS SQL API worked instead** (POST `https://<endpoint>/sql` with a `Neon-Connection-String` header; one statement per call). Useful trick for any future remote-session DB work; GitHub Actions has full egress and runs the normal pg worker.
+- First real sync written: schema applied (9 statements), **427 event snapshots (58 Sacramento), 125 merchants**, verified by query-back. When the hourly workflow takes over, its first run will prime ~427 fingerprints from these rows and record only deltas — continuity between the HTTP-API bootstrap and the pg worker is exactly what `primeFingerprints` exists for.
+- Remaining user steps: GitHub secrets + default-branch merge (tracked in TASKS In Progress).
+- Credentials hygiene: connection string handled via env vars only, never committed; user should rotate the Neon password whenever they wish (Neon dashboard → Roles) since it transited chat.
+
+---
+
 ## 2026-07-29 — Renamed to Events MCP Server (platform/application split)
 
 **Session**: [claude.ai/code session 01Xepb…](https://claude.ai/code/session_01XepbXrDVqstRRrP3nZzz4g)

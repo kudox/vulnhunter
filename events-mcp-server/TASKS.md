@@ -8,7 +8,7 @@ the session date that shipped them.
 
 ## In Progress
 
-- [ ] Start the history clock (waiting on user) — follow the [Neon setup runbook](./docs/DATABASE-STRATEGY.md#neon-setup-runbook-the-concrete-next-steps): create the Neon project (us-west-2), add `DATABASE_URL` + `TICKETMASTER_API_KEY` Actions secrets, merge to default branch, validate with two manual workflow runs (added: 2026-07-29)
+- [ ] Keep the history clock running (waiting on user) — Neon is live and the **first snapshot set is recorded** (427 events, 2026-07-29, written via Neon's HTTPS SQL API). Remaining: add `DATABASE_URL` + `TICKETMASTER_API_KEY` as GitHub Actions secrets, merge to default branch so the hourly `events-sync` workflow takes over, then verify one manual run shows fingerprints primed (~427) and near-zero new rows (added: 2026-07-29, updated: 2026-07-29)
 
 ## Backlog
 
